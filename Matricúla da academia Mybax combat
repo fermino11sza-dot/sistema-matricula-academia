@@ -1,0 +1,3710 @@
+import tkinter as tk
+from tkinter import ttk, messagebox
+import json
+import os
+
+ARQUIVO_DADOS = "matriculados.json"
+
+
+class AcademiaApp:
+
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Cadastro Academia - Mybax Combat")
+        self.root.geometry("480x680")
+        self.root.config(bg="#f0f0f0")
+        self.root.resizable(False, False)
+
+        self.alunos = []
+
+        # Título
+        self.label_titulo = tk.Label(
+            root,
+            text="Sistema de Matrícula",
+            font=("Arial", 16, "bold"),
+            bg="#f0f0f0",
+        )
+        self.label_titulo.pack(pady=10)
+
+        # Frame do Formulário
+        self.frame_form = tk.Frame(root, bg="#f0f0f0")
+        self.frame_form.pack(pady=5)
+
+        # Nome do aluno
+        self.label_nome = tk.Label(
+            self.frame_form,
+            text="Nome do aluno:",
+            font=("Arial", 10),
+            bg="#f0f0f0",
+            anchor="w",
+        )
+        self.label_nome.pack(fill="x", padx=10)
+        self.entry_nome = tk.Entry(self.frame_form, font=("Arial", 11), width=38)
+        self.entry_nome.pack(padx=10, pady=3)
+
+        # Idade
+        self.label_idade = tk.Label(
+            self.frame_form,
+            text="Idade:",
+            font=("Arial", 10),
+            bg="#f0f0f0",
+            anchor="w",
+        )
+        self.label_idade.pack(fill="x", padx=10, pady=(3, 0))
+        self.entry_idade = tk.Entry(self.frame_form, font=("Arial", 11), width=38)
+        self.entry_idade.pack(padx=10, pady=3)
+
+        # Telefone
+        self.label_telefone = tk.Label(
+            self.frame_form,
+            text="Telefone:",
+            font=("Arial", 10),
+            bg="#f0f0f0",
+            anchor="w",
+        )
+        self.label_telefone.pack(fill="x", padx=10, pady=(3, 0))
+        self.entry_telefone = tk.Entry(self.frame_form, font=("Arial", 11), width=38)
+        self.entry_telefone.pack(padx=10, pady=3)
+
+        # Plano (agora com seleção fixa)
+        self.label_plano = tk.Label(
+            self.frame_form,
+            text="Plano:",
+            font=("Arial", 10),
+            bg="#f0f0f0",
+            anchor="w",
+        )
+        self.label_plano.pack(fill="x", padx=10, pady=(3, 0))
+        self.combo_plano = ttk.Combobox(
+            self.frame_form,
+            font=("Arial", 11),
+            width=36,
+            state="readonly",
+            values=["Mensal", "Trimestral", "Semestral", "Anual"],
+        )
+        self.combo_plano.current(0)
+        self.combo_plano.pack(padx=10, pady=3)
+
+        # Botões principais
+        self.frame_botoes = tk.Frame(root, bg="#f0f0f0")
+        self.frame_botoes.pack(pady=10)
+
+        self.btn_matricular = tk.Button(
+            self.frame_botoes,
+            text="Matricular",
+            font=("Arial", 10, "bold"),
+            bg="#4CAF50",
+            fg="white",
+            width=12,
+            command=self.matricular,
+        )
+        self.btn_matricular.grid(row=0, column=0, padx=5, pady=3)
+
+        self.btn_remover = tk.Button(
+            self.frame_botoes,
+            text="Remover",
+            font=("Arial", 10, "bold"),
+            bg="#ff9800",
+            fg="white",
+            width=12,
+            command=self.remover_selecionado,
+        )
+        self.btn_remover.grid(row=0, column=1, padx=5, pady=3)
+
+        self.btn_limpar = tk.Button(
+            self.frame_botoes,
+            text="Limpar lista",
+            font=("Arial", 10, "bold"),
+            bg="#f44336",
+            fg="white",
+            width=12,
+            command=self.limpar_lista,
+        )
+        self.btn_limpar.grid(row=1, column=0, padx=5, pady=3)
+
+        self.btn_salvar = tk.Button(
+            self.frame_botoes,
+            text="Salvar dados",
+            font=("Arial", 10, "bold"),
+            bg="#2196F3",
+            fg="white",
+            width=12,
+            command=self.salvar_dados,
+        )
+        self.btn_salvar.grid(row=1, column=1, padx=5, pady=3)
+
+        # Campo de busca
+        self.frame_busca = tk.Frame(root, bg="#f0f0f0")
+        self.frame_busca.pack(pady=(5, 0), fill="x", padx=20)
+
+        self.label_busca = tk.Label(
+            self.frame_busca, text="Buscar:", font=("Arial", 10), bg="#f0f0f0"
+        )
+        self.label_busca.pack(side=tk.LEFT)
+
+        self.entry_busca = tk.Entry(self.frame_busca, font=("Arial", 10))
+        self.entry_busca.pack(side=tk.LEFT, fill="x", expand=True, padx=5)
+        self.entry_busca.bind("<KeyRelease>", self.buscar_aluno)
+
+        # Lista de Matriculados
+        self.frame_lista = tk.Frame(root)
+        self.frame_lista.pack(pady=10, fill="both", expand=True, padx=20)
+
+        self.scrollbar = tk.Scrollbar(self.frame_lista)
+        self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self.listbox = tk.Listbox(
+            self.frame_lista,
+            font=("Arial", 10),
+            yscrollcommand=self.scrollbar.set,
+            width=45,
+            height=10,
+        )
+        self.listbox.pack(side=tk.LEFT, fill="both", expand=True)
+        self.scrollbar.config(command=self.listbox.yview)
+
+        # Contador de matriculados
+        self.label_contador = tk.Label(
+            root,
+            text="Total de matriculados: 0",
+            font=("Arial", 10, "bold"),
+            bg="#f0f0f0",
+        )
+        self.label_contador.pack(pady=(0, 10))
+
+        self.carregar_dados()
+
+    def atualizar_lista(self):
+        self.listbox.delete(0, tk.END)
+        for aluno in self.alunos:
+            texto = (
+                f"{aluno['nome']} (Idade: {aluno['idade']}, "
+                f"Tel: {aluno['telefone']}) - Plano: {aluno['plano']}"
+            )
+            self.listbox.insert(tk.END, texto)
+        self.label_contador.config(
+            text=f"Total de matriculados: {len(self.alunos)}"
+        )
+
+    def matricular(self):
+        nome = self.entry_nome.get().strip()
+        idade = self.entry_idade.get().strip()
+        telefone = self.entry_telefone.get().strip()
+        plano = self.combo_plano.get().strip()
+
+        if not nome or not idade or not telefone or not plano:
+            messagebox.showwarning(
+                "Aviso", "Por favor, preencha todos os campos antes de matricular."
+            )
+            return
+
+        if not idade.isdigit():
+            messagebox.showerror("Erro", "A idade deve conter apenas números.")
+            return
+
+        aluno = {
+            "nome": nome,
+            "idade": idade,
+            "telefone": telefone,
+            "plano": plano,
+        }
+        self.alunos.append(aluno)
+        self.atualizar_lista()
+
+        self.entry_nome.delete(0, tk.END)
+        self.entry_idade.delete(0, tk.END)
+        self.entry_telefone.delete(0, tk.END)
+        self.combo_plano.current(0)
+        self.entry_nome.focus()
+
+        self.salvar_dados(mostrar_aviso=False)
+
+    def remover_selecionado(self):
+        selecionado = self.listbox.curselection()
+        if not selecionado:
+            messagebox.showwarning("Aviso", "Selecione um aluno para remover.")
+            return
+
+        indice = selecionado[0]
+        confirmar = messagebox.askyesno(
+            "Confirmar remoção",
+            f"Deseja remover '{self.alunos[indice]['nome']}' da lista?",
+        )
+        if confirmar:
+            del self.alunos[indice]
+            self.atualizar_lista()
+            self.salvar_dados(mostrar_aviso=False)
+
+    def limpar_lista(self):
+        if not self.alunos:
+            return
+        confirmar = messagebox.askyesno(
+            "Confirmar", "Deseja realmente limpar toda a lista de matriculados?"
+        )
+        if confirmar:
+            self.alunos = []
+            self.atualizar_lista()
+            self.salvar_dados(mostrar_aviso=False)
+
+    def buscar_aluno(self, event=None):
+        termo = self.entry_busca.get().strip().lower()
+        self.listbox.delete(0, tk.END)
+        for aluno in self.alunos:
+            if termo in aluno["nome"].lower():
+                texto = (
+                    f"{aluno['nome']} (Idade: {aluno['idade']}, "
+                    f"Tel: {aluno['telefone']}) - Plano: {aluno['plano']}"
+                )
+                self.listbox.insert(tk.END, texto)
+
+    def salvar_dados(self, mostrar_aviso=True):
+        try:
+            with open(ARQUIVO_DADOS, "w", encoding="utf-8") as f:
+                json.dump(self.alunos, f, ensure_ascii=False, indent=2)
+            if mostrar_aviso:
+                messagebox.showinfo("Sucesso", "Dados salvos com sucesso!")
+        except Exception as e:
+            if mostrar_aviso:
+                messagebox.showerror("Erro", f"Não foi possível salvar os dados.\n{e}")
+
+    def carregar_dados(self):
+        if os.path.exists(ARQUIVO_DADOS):
+            try:
+                with open(ARQUIVO_DADOS, "r", encoding="utf-8") as f:
+                    self.alunos = json.load(f)
+            except Exception:
+                self.alunos = []
+        self.atualizar_lista()
+
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = AcademiaApp(root)
+    root.mainloop()
+
+    import tkinter as tk
+from tkinter import ttk, messagebox
+import json
+import os
+import re
+from datetime import datetime
+
+ARQUIVO_DADOS = "matriculados.json"
+
+CONDICOES_SAUDE = [
+    "Asma",
+    "Diabetes",
+    "Hipertensão",
+    "Distrofia Muscular",
+    "Problema Cardíaco",
+    "Epilepsia",
+    "Lesão/Cirurgia recente",
+]
+
+
+def valida_cpf(cpf):
+    cpf = re.sub(r"\D", "", cpf)
+    if len(cpf) != 11:
+        return False
+    if cpf == cpf[0] * 11:
+        return False
+
+    soma = sum(int(cpf[i]) * (10 - i) for i in range(9))
+    resto = (soma * 10) % 11
+    digito1 = 0 if resto == 10 else resto
+    if digito1 != int(cpf[9]):
+        return False
+
+    soma = sum(int(cpf[i]) * (11 - i) for i in range(10))
+    resto = (soma * 10) % 11
+    digito2 = 0 if resto == 10 else resto
+    if digito2 != int(cpf[10]):
+        return False
+
+    return True
+
+
+def formata_cpf(cpf):
+    cpf = re.sub(r"\D", "", cpf)
+    return f"{cpf[0:3]}.{cpf[3:6]}.{cpf[6:9]}-{cpf[9:11]}"
+
+
+def valida_telefone(tel):
+    tel = re.sub(r"\D", "", tel)
+    return len(tel) in (10, 11)
+
+
+def valida_data_nascimento(data_str):
+    try:
+        data = datetime.strptime(data_str.strip(), "%d/%m/%Y")
+    except ValueError:
+        return False, None
+
+    hoje = datetime.now()
+    if data > hoje:
+        return False, None
+
+    idade = hoje.year - data.year - (
+        (hoje.month, hoje.day) < (data.month, data.day)
+    )
+    if idade < 0 or idade > 120:
+        return False, None
+
+    return True, idade
+
+
+def valida_endereco(endereco):
+    return len(endereco.strip()) >= 5
+
+
+class AcademiaApp:
+
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Cadastro Academia - Mybax Combat")
+        self.root.geometry("520x820")
+        self.root.config(bg="#f0f0f0")
+        self.root.resizable(False, False)
+
+        self.alunos = []
+        self.check_vars = {}
+
+        canvas = tk.Canvas(root, bg="#f0f0f0", highlightthickness=0)
+        scrollbar_geral = tk.Scrollbar(root, orient="vertical", command=canvas.yview)
+        self.frame_scroll = tk.Frame(canvas, bg="#f0f0f0")
+
+        self.frame_scroll.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all")),
+        )
+        canvas.create_window((0, 0), window=self.frame_scroll, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar_geral.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar_geral.pack(side="right", fill="y")
+
+        root_frame = self.frame_scroll
+
+        # Título
+        tk.Label(
+            root_frame,
+            text="Sistema de Matrícula",
+            font=("Arial", 16, "bold"),
+            bg="#f0f0f0",
+        ).pack(pady=10)
+
+        self.frame_form = tk.Frame(root_frame, bg="#f0f0f0")
+        self.frame_form.pack(pady=5)
+
+        def campo(label_texto):
+            tk.Label(
+                self.frame_form,
+                text=label_texto,
+                font=("Arial", 10),
+                bg="#f0f0f0",
+                anchor="w",
+            ).pack(fill="x", padx=10, pady=(5, 0))
+            entry = tk.Entry(self.frame_form, font=("Arial", 11), width=42)
+            entry.pack(padx=10, pady=3)
+            return entry
+
+        self.entry_nome = campo("Nome do aluno:")
+        self.entry_idade = campo("Idade:")
+        self.entry_cpf = campo("CPF (somente números ou com pontuação):")
+        self.entry_nascimento = campo("Data de nascimento (dd/mm/aaaa):")
+        self.entry_telefone = campo("Telefone (DDD + número):")
+        self.entry_endereco = campo("Endereço completo:")
+
+        tk.Label(
+            self.frame_form,
+            text="Plano:",
+            font=("Arial", 10),
+            bg="#f0f0f0",
+            anchor="w",
+        ).pack(fill="x", padx=10, pady=(5, 0))
+        self.combo_plano = ttk.Combobox(
+            self.frame_form,
+            font=("Arial", 11),
+            width=40,
+            state="readonly",
+            values=["Mensal", "Trimestral", "Semestral", "Anual"],
+        )
+        self.combo_plano.current(0)
+        self.combo_plano.pack(padx=10, pady=3)
+
+        # Condições de saúde
+        self.frame_saude = tk.LabelFrame(
+            root_frame,
+            text="Condições de saúde (marque se aplicável)",
+            font=("Arial", 10, "bold"),
+            bg="#f0f0f0",
+            padx=10,
+            pady=10,
+        )
+        self.frame_saude.pack(pady=10, padx=20, fill="x")
+
+        for condicao in CONDICOES_SAUDE:
+            var = tk.BooleanVar()
+            chk = tk.Checkbutton(
+                self.frame_saude,
+                text=condicao,
+                variable=var,
+                bg="#f0f0f0",
+                font=("Arial", 10),
+                anchor="w",
+            )
+            chk.pack(fill="x", anchor="w")
+            self.check_vars[condicao] = var
+
+        frame_outra = tk.Frame(self.frame_saude, bg="#f0f0f0")
+        frame_outra.pack(fill="x", pady=(5, 0))
+        self.var_outra = tk.BooleanVar()
+        tk.Checkbutton(
+            frame_outra,
+            text="Outra:",
+            variable=self.var_outra,
+            bg="#f0f0f0",
+            font=("Arial", 10),
+        ).pack(side=tk.LEFT)
+        self.entry_outra_condicao = tk.Entry(frame_outra, font=("Arial", 10), width=30)
+        self.entry_outra_condicao.pack(side=tk.LEFT, padx=5)
+
+        # Botões principais
+        self.frame_botoes = tk.Frame(root_frame, bg="#f0f0f0")
+        self.frame_botoes.pack(pady=10)
+
+        tk.Button(
+            self.frame_botoes,
+            text="Matricular",
+            font=("Arial", 10, "bold"),
+            bg="#4CAF50",
+            fg="white",
+            width=13,
+            command=self.matricular,
+        ).grid(row=0, column=0, padx=5, pady=3)
+
+        tk.Button(
+            self.frame_botoes,
+            text="Ver detalhes",
+            font=("Arial", 10, "bold"),
+            bg="#3f51b5",
+            fg="white",
+            width=13,
+            command=self.ver_detalhes,
+        ).grid(row=0, column=1, padx=5, pady=3)
+
+        tk.Button(
+            self.frame_botoes,
+            text="Remover",
+            font=("Arial", 10, "bold"),
+            bg="#ff9800",
+            fg="white",
+            width=13,
+            command=self.remover_selecionado,
+        ).grid(row=1, column=0, padx=5, pady=3)
+
+        tk.Button(
+            self.frame_botoes,
+            text="Limpar lista",
+            font=("Arial", 10, "bold"),
+            bg="#f44336",
+            fg="white",
+            width=13,
+            command=self.limpar_lista,
+        ).grid(row=1, column=1, padx=5, pady=3)
+
+        tk.Button(
+            self.frame_botoes,
+            text="Salvar dados",
+            font=("Arial", 10, "bold"),
+            bg="#2196F3",
+            fg="white",
+            width=13,
+            command=self.salvar_dados,
+        ).grid(row=2, column=0, columnspan=2, pady=3)
+
+        # Busca
+        self.frame_busca = tk.Frame(root_frame, bg="#f0f0f0")
+        self.frame_busca.pack(pady=(5, 0), fill="x", padx=20)
+        tk.Label(self.frame_busca, text="Buscar:", font=("Arial", 10), bg="#f0f0f0").pack(side=tk.LEFT)
+        self.entry_busca = tk.Entry(self.frame_busca, font=("Arial", 10))
+        self.entry_busca.pack(side=tk.LEFT, fill="x", expand=True, padx=5)
+        self.entry_busca.bind("<KeyRelease>", self.buscar_aluno)
+
+        # Lista
+        self.frame_lista = tk.Frame(root_frame)
+        self.frame_lista.pack(pady=10, fill="both", expand=True, padx=20)
+
+        self.scrollbar = tk.Scrollbar(self.frame_lista)
+        self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self.listbox = tk.Listbox(
+            self.frame_lista,
+            font=("Arial", 10),
+            yscrollcommand=self.scrollbar.set,
+            width=52,
+            height=10,
+        )
+        self.listbox.pack(side=tk.LEFT, fill="both", expand=True)
+        self.scrollbar.config(command=self.listbox.yview)
+
+        self.label_contador = tk.Label(
+            root_frame,
+            text="Total de matriculados: 0",
+            font=("Arial", 10, "bold"),
+            bg="#f0f0f0",
+        )
+        self.label_contador.pack(pady=(0, 15))
+
+        self.carregar_dados()
+
+    def coletar_condicoes(self):
+        condicoes = [c for c, v in self.check_vars.items() if v.get()]
+        if self.var_outra.get():
+            outra = self.entry_outra_condicao.get().strip()
+            if outra:
+                condicoes.append(f"Outra: {outra}")
+        return condicoes
+
+    def limpar_condicoes(self):
+        for var in self.check_vars.values():
+            var.set(False)
+        self.var_outra.set(False)
+        self.entry_outra_condicao.delete(0, tk.END)
+
+    def atualizar_lista(self):
+        self.listbox.delete(0, tk.END)
+        for aluno in self.alunos:
+            texto = f"{aluno['nome']} - CPF: {aluno['cpf']} - Plano: {aluno['plano']}"
+            self.listbox.insert(tk.END, texto)
+        self.label_contador.config(text=f"Total de matriculados: {len(self.alunos)}")
+
+    def matricular(self):
+        nome = self.entry_nome.get().strip()
+        idade_txt = self.entry_idade.get().strip()
+        cpf = self.entry_cpf.get().strip()
+        nascimento = self.entry_nascimento.get().strip()
+        telefone = self.entry_telefone.get().strip()
+        endereco = self.entry_endereco.get().strip()
+        plano = self.combo_plano.get().strip()
+
+        if not all([nome, idade_txt, cpf, nascimento, telefone, endereco, plano]):
+            messagebox.showwarning("Aviso", "Preencha todos os campos antes de matricular.")
+            return
+
+        if not idade_txt.isdigit():
+            messagebox.showerror("Erro", "A idade deve conter apenas números.")
+            return
+
+        if not valida_cpf(cpf):
+            messagebox.showerror("Erro", "CPF inválido. Verifique os números digitados.")
+            return
+
+        data_valida, idade_calculada = valida_data_nascimento(nascimento)
+        if not data_valida:
+            messagebox.showerror(
+                "Erro", "Data de nascimento inválida. Use o formato dd/mm/aaaa."
+            )
+            return
+
+        if not valida_telefone(telefone):
+            messagebox.showerror(
+                "Erro", "Telefone inválido. Informe DDD + número (10 ou 11 dígitos)."
+            )
+            return
+
+        if not valida_endereco(endereco):
+            messagebox.showerror("Erro", "Endereço muito curto ou inválido.")
+            return
+
+        if int(idade_txt) != idade_calculada:
+            confirmar = messagebox.askyesno(
+                "Divergência de idade",
+                f"A idade informada ({idade_txt}) não corresponde à idade calculada "
+                f"pela data de nascimento ({idade_calculada}). Deseja continuar mesmo assim?",
+            )
+            if not confirmar:
+                return
+
+        for existente in self.alunos:
+            if existente["cpf"] == re.sub(r"\D", "", cpf):
+                messagebox.showerror("Erro", "Já existe um aluno cadastrado com este CPF.")
+                return
+
+        aluno = {
+            "nome": nome,
+            "idade": idade_txt,
+            "cpf": re.sub(r"\D", "", cpf),
+            "nascimento": nascimento,
+            "telefone": telefone,
+            "endereco": endereco,
+            "plano": plano,
+            "condicoes_saude": self.coletar_condicoes(),
+        }
+        self.alunos.append(aluno)
+        self.atualizar_lista()
+
+        for entry in (
+            self.entry_nome,
+            self.entry_idade,
+            self.entry_cpf,
+            self.entry_nascimento,
+            self.entry_telefone,
+            self.entry_endereco,
+        ):
+            entry.delete(0, tk.END)
+        self.combo_plano.current(0)
+        self.limpar_condicoes()
+        self.entry_nome.focus()
+
+        self.salvar_dados(mostrar_aviso=False)
+
+    def ver_detalhes(self):
+        selecionado = self.listbox.curselection()
+        if not selecionado:
+            messagebox.showwarning("Aviso", "Selecione um aluno para ver os detalhes.")
+            return
+
+        aluno = self.alunos[selecionado[0]]
+        condicoes = ", ".join(aluno["condicoes_saude"]) if aluno["condicoes_saude"] else "Nenhuma informada"
+
+        detalhes = (
+            f"Nome: {aluno['nome']}\n"
+            f"Idade: {aluno['idade']}\n"
+            f"CPF: {formata_cpf(aluno['cpf'])}\n"
+            f"Nascimento: {aluno['nascimento']}\n"
+            f"Telefone: {aluno['telefone']}\n"
+            f"Endereço: {aluno['endereco']}\n"
+            f"Plano: {aluno['plano']}\n"
+            f"Condições de saúde: {condicoes}"
+        )
+        messagebox.showinfo("Detalhes do aluno", detalhes)
+
+    def remover_selecionado(self):
+        selecionado = self.listbox.curselection()
+        if not selecionado:
+            messagebox.showwarning("Aviso", "Selecione um aluno para remover.")
+            return
+
+        indice = selecionado[0]
+        confirmar = messagebox.askyesno(
+            "Confirmar remoção", f"Deseja remover '{self.alunos[indice]['nome']}' da lista?"
+        )
+        if confirmar:
+            del self.alunos[indice]
+            self.atualizar_lista()
+            self.salvar_dados(mostrar_aviso=False)
+
+    def limpar_lista(self):
+        if not self.alunos:
+            return
+        confirmar = messagebox.askyesno(
+            "Confirmar", "Deseja realmente limpar toda a lista de matriculados?"
+        )
+        if confirmar:
+            self.alunos = []
+            self.atualizar_lista()
+            self.salvar_dados(mostrar_aviso=False)
+
+    def buscar_aluno(self, event=None):
+        termo = self.entry_busca.get().strip().lower()
+        self.listbox.delete(0, tk.END)
+        for aluno in self.alunos:
+            if termo in aluno["nome"].lower() or termo in aluno["cpf"]:
+                texto = f"{aluno['nome']} - CPF: {aluno['cpf']} - Plano: {aluno['plano']}"
+                self.listbox.insert(tk.END, texto)
+
+    def salvar_dados(self, mostrar_aviso=True):
+        try:
+            with open(ARQUIVO_DADOS, "w", encoding="utf-8") as f:
+                json.dump(self.alunos, f, ensure_ascii=False, indent=2)
+            if mostrar_aviso:
+                messagebox.showinfo("Sucesso", "Dados salvos com sucesso!")
+        except Exception as e:
+            if mostrar_aviso:
+                messagebox.showerror("Erro", f"Não foi possível salvar os dados.\n{e}")
+
+    def carregar_dados(self):
+        if os.path.exists(ARQUIVO_DADOS):
+            try:
+                with open(ARQUIVO_DADOS, "r", encoding="utf-8") as f:
+                    self.alunos = json.load(f)
+            except Exception:
+                self.alunos = []
+        self.atualizar_lista()
+
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = AcademiaApp(root)
+    root.mainloop()
+
+    import tkinter as tk
+from tkinter import ttk, messagebox
+import json
+import os
+import re
+from datetime import datetime
+
+ARQUIVO_DADOS = "matriculados.json"
+
+CONDICOES_SAUDE = [
+    "Asma",
+    "Diabetes",
+    "Hipertensão",
+    "Distrofia Muscular",
+    "Problema Cardíaco",
+    "Epilepsia",
+    "Lesão/Cirurgia recente",
+]
+
+# ---------- Paleta de cores ----------
+COR_PRETO = "#161616"
+COR_BRANCO = "#FFFFFF"
+COR_BEGE = "#F1E9DA"
+COR_BEGE_ESCURO = "#E3D6BC"
+COR_AGUA_MARINHA = "#159E93"
+COR_AGUA_MARINHA_ESCURO = "#0E7A71"
+FONTE_PADRAO = "Segoe UI"
+
+
+def valida_cpf(cpf):
+    cpf = re.sub(r"\D", "", cpf)
+    if len(cpf) != 11:
+        return False
+    if cpf == cpf[0] * 11:
+        return False
+
+    soma = sum(int(cpf[i]) * (10 - i) for i in range(9))
+    resto = (soma * 10) % 11
+    digito1 = 0 if resto == 10 else resto
+    if digito1 != int(cpf[9]):
+        return False
+
+    soma = sum(int(cpf[i]) * (11 - i) for i in range(10))
+    resto = (soma * 10) % 11
+    digito2 = 0 if resto == 10 else resto
+    if digito2 != int(cpf[10]):
+        return False
+
+    return True
+
+
+def formata_cpf(cpf):
+    cpf = re.sub(r"\D", "", cpf)
+    return f"{cpf[0:3]}.{cpf[3:6]}.{cpf[6:9]}-{cpf[9:11]}"
+
+
+def valida_telefone(tel):
+    tel = re.sub(r"\D", "", tel)
+    return len(tel) in (10, 11)
+
+
+def valida_data_nascimento(data_str):
+    try:
+        data = datetime.strptime(data_str.strip(), "%d/%m/%Y")
+    except ValueError:
+        return False, None
+
+    hoje = datetime.now()
+    if data > hoje:
+        return False, None
+
+    idade = hoje.year - data.year - ((hoje.month, hoje.day) < (data.month, data.day))
+    if idade < 0 or idade > 120:
+        return False, None
+
+    return True, idade
+
+
+def valida_endereco(endereco):
+    return len(endereco.strip()) >= 5
+
+
+class AcademiaApp:
+
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Mybax Combat - Sistema de Matrícula")
+        self.root.geometry("620x860")
+        self.root.config(bg=COR_BEGE)
+        self.root.resizable(False, False)
+
+        self.alunos = []
+        self.check_vars = {}
+
+        self._configurar_estilos()
+
+        # ---------- Cabeçalho ----------
+        header = tk.Frame(root, bg=COR_PRETO, height=90)
+        header.pack(fill="x", side="top")
+        header.pack_propagate(False)
+
+        tk.Label(
+            header,
+            text="MYBAX COMBAT",
+            font=(FONTE_PADRAO, 20, "bold"),
+            bg=COR_PRETO,
+            fg=COR_AGUA_MARINHA,
+        ).pack(pady=(14, 0))
+        tk.Label(
+            header,
+            text="Sistema de Matrícula",
+            font=(FONTE_PADRAO, 10),
+            bg=COR_PRETO,
+            fg=COR_BRANCO,
+        ).pack()
+
+        # ---------- Área rolável ----------
+        canvas = tk.Canvas(root, bg=COR_BEGE, highlightthickness=0)
+        scrollbar_geral = ttk.Scrollbar(root, orient="vertical", command=canvas.yview)
+        self.frame_scroll = tk.Frame(canvas, bg=COR_BEGE)
+
+        self.frame_scroll.bind(
+            "<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        canvas.create_window((0, 0), window=self.frame_scroll, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar_geral.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar_geral.pack(side="right", fill="y")
+
+        root_frame = self.frame_scroll
+
+        # ---------- Cartão do formulário ----------
+        card_form = tk.Frame(root_frame, bg=COR_BRANCO, bd=0, highlightthickness=1,
+                              highlightbackground=COR_BEGE_ESCURO)
+        card_form.pack(pady=20, padx=25, fill="x")
+
+        tk.Label(
+            card_form,
+            text="Dados do Aluno",
+            font=(FONTE_PADRAO, 13, "bold"),
+            bg=COR_BRANCO,
+            fg=COR_PRETO,
+        ).pack(anchor="w", padx=18, pady=(15, 5))
+
+        self.frame_form = tk.Frame(card_form, bg=COR_BRANCO)
+        self.frame_form.pack(padx=18, pady=(0, 15), fill="x")
+
+        def campo(label_texto):
+            tk.Label(
+                self.frame_form,
+                text=label_texto,
+                font=(FONTE_PADRAO, 9, "bold"),
+                bg=COR_BRANCO,
+                fg=COR_AGUA_MARINHA_ESCURO,
+                anchor="w",
+            ).pack(fill="x", pady=(8, 2))
+            entry = tk.Entry(
+                self.frame_form,
+                font=(FONTE_PADRAO, 11),
+                bg=COR_BEGE,
+                fg=COR_PRETO,
+                relief="flat",
+                insertbackground=COR_PRETO,
+                highlightthickness=1,
+                highlightbackground=COR_BEGE_ESCURO,
+                highlightcolor=COR_AGUA_MARINHA,
+            )
+            entry.pack(fill="x", ipady=6)
+            return entry
+
+        self.entry_nome = campo("NOME DO ALUNO")
+        self.entry_idade = campo("IDADE")
+        self.entry_cpf = campo("CPF")
+        self.entry_nascimento = campo("DATA DE NASCIMENTO (dd/mm/aaaa)")
+        self.entry_telefone = campo("TELEFONE (DDD + número)")
+        self.entry_endereco = campo("ENDEREÇO COMPLETO")
+
+        tk.Label(
+            self.frame_form,
+            text="PLANO",
+            font=(FONTE_PADRAO, 9, "bold"),
+            bg=COR_BRANCO,
+            fg=COR_AGUA_MARINHA_ESCURO,
+            anchor="w",
+        ).pack(fill="x", pady=(8, 2))
+        self.combo_plano = ttk.Combobox(
+            self.frame_form,
+            font=(FONTE_PADRAO, 11),
+            state="readonly",
+            style="Moderno.TCombobox",
+            values=["Mensal", "Trimestral", "Semestral", "Anual"],
+        )
+        self.combo_plano.current(0)
+        self.combo_plano.pack(fill="x", ipady=4)
+
+        # ---------- Cartão de saúde ----------
+        card_saude = tk.Frame(root_frame, bg=COR_BRANCO, highlightthickness=1,
+                               highlightbackground=COR_BEGE_ESCURO)
+        card_saude.pack(pady=(0, 20), padx=25, fill="x")
+
+        tk.Label(
+            card_saude,
+            text="Condições de Saúde",
+            font=(FONTE_PADRAO, 13, "bold"),
+            bg=COR_BRANCO,
+            fg=COR_PRETO,
+        ).pack(anchor="w", padx=18, pady=(15, 5))
+
+        self.frame_saude = tk.Frame(card_saude, bg=COR_BRANCO)
+        self.frame_saude.pack(padx=18, pady=(0, 15), fill="x")
+
+        for condicao in CONDICOES_SAUDE:
+            var = tk.BooleanVar()
+            tk.Checkbutton(
+                self.frame_saude,
+                text=condicao,
+                variable=var,
+                bg=COR_BRANCO,
+                fg=COR_PRETO,
+                font=(FONTE_PADRAO, 10),
+                activebackground=COR_BRANCO,
+                selectcolor=COR_BEGE,
+                anchor="w",
+            ).pack(fill="x", anchor="w", pady=2)
+            self.check_vars[condicao] = var
+
+        frame_outra = tk.Frame(self.frame_saude, bg=COR_BRANCO)
+        frame_outra.pack(fill="x", pady=(6, 0))
+        self.var_outra = tk.BooleanVar()
+        tk.Checkbutton(
+            frame_outra,
+            text="Outra:",
+            variable=self.var_outra,
+            bg=COR_BRANCO,
+            fg=COR_PRETO,
+            font=(FONTE_PADRAO, 10),
+            selectcolor=COR_BEGE,
+        ).pack(side=tk.LEFT)
+        self.entry_outra_condicao = tk.Entry(
+            frame_outra, font=(FONTE_PADRAO, 10), bg=COR_BEGE, relief="flat"
+        )
+        self.entry_outra_condicao.pack(side=tk.LEFT, padx=8, ipady=3, fill="x", expand=True)
+
+        # ---------- Botões ----------
+        frame_botoes = tk.Frame(root_frame, bg=COR_BEGE)
+        frame_botoes.pack(pady=(0, 15), padx=25, fill="x")
+
+        def botao(pai, texto, cor_fundo, cor_texto, comando):
+            b = tk.Button(
+                pai,
+                text=texto,
+                font=(FONTE_PADRAO, 10, "bold"),
+                bg=cor_fundo,
+                fg=cor_texto,
+                relief="flat",
+                activebackground=COR_AGUA_MARINHA_ESCURO,
+                activeforeground=COR_BRANCO,
+                cursor="hand2",
+                command=comando,
+                padx=10,
+                pady=8,
+            )
+            return b
+
+        botao(frame_botoes, "MATRICULAR", COR_AGUA_MARINHA, COR_BRANCO, self.matricular).grid(
+            row=0, column=0, padx=4, pady=4, sticky="ew"
+        )
+        botao(frame_botoes, "VER DETALHES", COR_PRETO, COR_BRANCO, self.ver_detalhes).grid(
+            row=0, column=1, padx=4, pady=4, sticky="ew"
+        )
+        botao(frame_botoes, "REMOVER", COR_BEGE_ESCURO, COR_PRETO, self.remover_selecionado).grid(
+            row=1, column=0, padx=4, pady=4, sticky="ew"
+        )
+        botao(frame_botoes, "LIMPAR LISTA", "#8C2F2F", COR_BRANCO, self.limpar_lista).grid(
+            row=1, column=1, padx=4, pady=4, sticky="ew"
+        )
+        botao(frame_botoes, "SALVAR DADOS", COR_AGUA_MARINHA_ESCURO, COR_BRANCO, self.salvar_dados).grid(
+            row=2, column=0, columnspan=2, padx=4, pady=4, sticky="ew"
+        )
+
+        frame_botoes.columnconfigure(0, weight=1)
+        frame_botoes.columnconfigure(1, weight=1)
+
+        # ---------- Busca ----------
+        frame_busca = tk.Frame(root_frame, bg=COR_BEGE)
+        frame_busca.pack(pady=(0, 10), padx=25, fill="x")
+        tk.Label(
+            frame_busca, text="BUSCAR", font=(FONTE_PADRAO, 9, "bold"),
+            bg=COR_BEGE, fg=COR_AGUA_MARINHA_ESCURO,
+        ).pack(anchor="w")
+        self.entry_busca = tk.Entry(
+            frame_busca, font=(FONTE_PADRAO, 10), bg=COR_BRANCO, relief="flat",
+            highlightthickness=1, highlightbackground=COR_BEGE_ESCURO, highlightcolor=COR_AGUA_MARINHA,
+        )
+        self.entry_busca.pack(fill="x", ipady=6)
+        self.entry_busca.bind("<KeyRelease>", self.buscar_aluno)
+
+        # ---------- Tabela (Treeview) ----------
+        frame_lista = tk.Frame(root_frame, bg=COR_BEGE)
+        frame_lista.pack(pady=10, padx=25, fill="both", expand=True)
+
+        colunas = ("nome", "cpf", "telefone", "plano")
+        self.tree = ttk.Treeview(
+            frame_lista, columns=colunas, show="headings", height=10, style="Moderno.Treeview"
+        )
+        self.tree.heading("nome", text="Nome")
+        self.tree.heading("cpf", text="CPF")
+        self.tree.heading("telefone", text="Telefone")
+        self.tree.heading("plano", text="Plano")
+        self.tree.column("nome", width=180)
+        self.tree.column("cpf", width=120)
+        self.tree.column("telefone", width=110)
+        self.tree.column("plano", width=90)
+
+        scroll_tree = ttk.Scrollbar(frame_lista, orient="vertical", command=self.tree.yview)
+        self.tree.configure(yscrollcommand=scroll_tree.set)
+        self.tree.pack(side=tk.LEFT, fill="both", expand=True)
+        scroll_tree.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self.label_contador = tk.Label(
+            root_frame,
+            text="Total de matriculados: 0",
+            font=(FONTE_PADRAO, 10, "bold"),
+            bg=COR_BEGE,
+            fg=COR_PRETO,
+        )
+        self.label_contador.pack(pady=(0, 20))
+
+        self.carregar_dados()
+
+    def _configurar_estilos(self):
+        style = ttk.Style()
+        style.theme_use("clam")
+
+        style.configure(
+            "Moderno.TCombobox",
+            fieldbackground=COR_BEGE,
+            background=COR_BEGE,
+            foreground=COR_PRETO,
+            arrowcolor=COR_AGUA_MARINHA_ESCURO,
+            relief="flat",
+        )
+
+        style.configure(
+            "Moderno.Treeview",
+            background=COR_BRANCO,
+            fieldbackground=COR_BRANCO,
+            foreground=COR_PRETO,
+            rowheight=28,
+            font=(FONTE_PADRAO, 10),
+            borderwidth=0,
+        )
+        style.configure(
+            "Moderno.Treeview.Heading",
+            background=COR_AGUA_MARINHA,
+            foreground=COR_BRANCO,
+            font=(FONTE_PADRAO, 10, "bold"),
+            relief="flat",
+        )
+        style.map(
+            "Moderno.Treeview",
+            background=[("selected", COR_AGUA_MARINHA_ESCURO)],
+            foreground=[("selected", COR_BRANCO)],
+        )
+        style.map("Moderno.Treeview.Heading", background=[("active", COR_AGUA_MARINHA_ESCURO)])
+
+    def coletar_condicoes(self):
+        condicoes = [c for c, v in self.check_vars.items() if v.get()]
+        if self.var_outra.get():
+            outra = self.entry_outra_condicao.get().strip()
+            if outra:
+                condicoes.append(f"Outra: {outra}")
+        return condicoes
+
+    def limpar_condicoes(self):
+        for var in self.check_vars.values():
+            var.set(False)
+        self.var_outra.set(False)
+        self.entry_outra_condicao.delete(0, tk.END)
+
+    def atualizar_lista(self, filtro=None):
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+
+        for indice, aluno in enumerate(self.alunos):
+            if filtro and filtro not in aluno["nome"].lower() and filtro not in aluno["cpf"]:
+                continue
+            self.tree.insert(
+                "", tk.END, iid=str(indice),
+                values=(aluno["nome"], formata_cpf(aluno["cpf"]), aluno["telefone"], aluno["plano"]),
+            )
+        self.label_contador.config(text=f"Total de matriculados: {len(self.alunos)}")
+
+    def matricular(self):
+        nome = self.entry_nome.get().strip()
+        idade_txt = self.entry_idade.get().strip()
+        cpf = self.entry_cpf.get().strip()
+        nascimento = self.entry_nascimento.get().strip()
+        telefone = self.entry_telefone.get().strip()
+        endereco = self.entry_endereco.get().strip()
+        plano = self.combo_plano.get().strip()
+
+        if not all([nome, idade_txt, cpf, nascimento, telefone, endereco, plano]):
+            messagebox.showwarning("Aviso", "Preencha todos os campos antes de matricular.")
+            return
+
+        if not idade_txt.isdigit():
+            messagebox.showerror("Erro", "A idade deve conter apenas números.")
+            return
+
+        if not valida_cpf(cpf):
+            messagebox.showerror("Erro", "CPF inválido. Verifique os números digitados.")
+            return
+
+        data_valida, idade_calculada = valida_data_nascimento(nascimento)
+        if not data_valida:
+            messagebox.showerror("Erro", "Data de nascimento inválida. Use o formato dd/mm/aaaa.")
+            return
+
+        if not valida_telefone(telefone):
+            messagebox.showerror("Erro", "Telefone inválido. Informe DDD + número (10 ou 11 dígitos).")
+            return
+
+        if not valida_endereco(endereco):
+            messagebox.showerror("Erro", "Endereço muito curto ou inválido.")
+            return
+
+        if int(idade_txt) != idade_calculada:
+            confirmar = messagebox.askyesno(
+                "Divergência de idade",
+                f"A idade informada ({idade_txt}) não corresponde à idade calculada "
+                f"pela data de nascimento ({idade_calculada}). Deseja continuar mesmo assim?",
+            )
+            if not confirmar:
+                return
+
+        cpf_limpo = re.sub(r"\D", "", cpf)
+        for existente in self.alunos:
+            if existente["cpf"] == cpf_limpo:
+                messagebox.showerror("Erro", "Já existe um aluno cadastrado com este CPF.")
+                return
+
+        aluno = {
+            "nome": nome,
+            "idade": idade_txt,
+            "cpf": cpf_limpo,
+            "nascimento": nascimento,
+            "telefone": telefone,
+            "endereco": endereco,
+            "plano": plano,
+            "condicoes_saude": self.coletar_condicoes(),
+        }
+        self.alunos.append(aluno)
+        self.atualizar_lista()
+
+        for entry in (
+            self.entry_nome, self.entry_idade, self.entry_cpf,
+            self.entry_nascimento, self.entry_telefone, self.entry_endereco,
+        ):
+            entry.delete(0, tk.END)
+        self.combo_plano.current(0)
+        self.limpar_condicoes()
+        self.entry_nome.focus()
+
+        self.salvar_dados(mostrar_aviso=False)
+
+    def ver_detalhes(self):
+        selecionado = self.tree.selection()
+        if not selecionado:
+            messagebox.showwarning("Aviso", "Selecione um aluno para ver os detalhes.")
+            return
+
+        indice = int(selecionado[0])
+        aluno = self.alunos[indice]
+        condicoes = ", ".join(aluno["condicoes_saude"]) if aluno["condicoes_saude"] else "Nenhuma informada"
+
+        detalhes = (
+            f"Nome: {aluno['nome']}\n"
+            f"Idade: {aluno['idade']}\n"
+            f"CPF: {formata_cpf(aluno['cpf'])}\n"
+            f"Nascimento: {aluno['nascimento']}\n"
+            f"Telefone: {aluno['telefone']}\n"
+            f"Endereço: {aluno['endereco']}\n"
+            f"Plano: {aluno['plano']}\n"
+            f"Condições de saúde: {condicoes}"
+        )
+        messagebox.showinfo("Detalhes do aluno", detalhes)
+
+    def remover_selecionado(self):
+        selecionado = self.tree.selection()
+        if not selecionado:
+            messagebox.showwarning("Aviso", "Selecione um aluno para remover.")
+            return
+
+        indice = int(selecionado[0])
+        confirmar = messagebox.askyesno(
+            "Confirmar remoção", f"Deseja remover '{self.alunos[indice]['nome']}' da lista?"
+        )
+        if confirmar:
+            del self.alunos[indice]
+            self.atualizar_lista()
+            self.salvar_dados(mostrar_aviso=False)
+
+    def limpar_lista(self):
+        if not self.alunos:
+            return
+        confirmar = messagebox.askyesno(
+            "Confirmar", "Deseja realmente limpar toda a lista de matriculados?"
+        )
+        if confirmar:
+            self.alunos = []
+            self.atualizar_lista()
+            self.salvar_dados(mostrar_aviso=False)
+
+    def buscar_aluno(self, event=None):
+        termo = self.entry_busca.get().strip().lower()
+        self.atualizar_lista(filtro=termo if termo else None)
+
+    def salvar_dados(self, mostrar_aviso=True):
+        try:
+            with open(ARQUIVO_DADOS, "w", encoding="utf-8") as f:
+                json.dump(self.alunos, f, ensure_ascii=False, indent=2)
+            if mostrar_aviso:
+                messagebox.showinfo("Sucesso", "Dados salvos com sucesso!")
+        except Exception as e:
+            if mostrar_aviso:
+                messagebox.showerror("Erro", f"Não foi possível salvar os dados.\n{e}")
+
+    def carregar_dados(self):
+        if os.path.exists(ARQUIVO_DADOS):
+            try:
+                with open(ARQUIVO_DADOS, "r", encoding="utf-8") as f:
+                    self.alunos = json.load(f)
+            except Exception:
+                self.alunos = []
+        self.atualizar_lista()
+
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = AcademiaApp(root)
+    root.mainloop()
+
+    import tkinter as tk
+from tkinter import ttk, messagebox
+import json
+import os
+import re
+from datetime import datetime
+
+ARQUIVO_DADOS = "matriculados.json"
+
+CONDICOES_SAUDE = [
+    "Asma",
+    "Diabetes",
+    "Hipertensão",
+    "Distrofia Muscular",
+    "Problema Cardíaco",
+    "Epilepsia",
+    "Lesão/Cirurgia recente",
+]
+
+# ---------- Paleta de cores ----------
+COR_PRETO = "#161616"
+COR_BRANCO = "#FFFFFF"
+COR_CINZA_TWEED = "#A8A296"
+COR_CINZA_TWEED_ESCURO = "#8C8677"
+COR_AGUA_MARINHA = "#159E93"
+COR_AGUA_MARINHA_ESCURO = "#0E7A71"
+FONTE_PADRAO = "Segoe UI"
+
+
+def valida_cpf(cpf):
+    cpf = re.sub(r"\D", "", cpf)
+    if len(cpf) != 11:
+        return False
+    if cpf == cpf[0] * 11:
+        return False
+
+    soma = sum(int(cpf[i]) * (10 - i) for i in range(9))
+    resto = (soma * 10) % 11
+    digito1 = 0 if resto == 10 else resto
+    if digito1 != int(cpf[9]):
+        return False
+
+    soma = sum(int(cpf[i]) * (11 - i) for i in range(10))
+    resto = (soma * 10) % 11
+    digito2 = 0 if resto == 10 else resto
+    if digito2 != int(cpf[10]):
+        return False
+
+    return True
+
+
+def formata_cpf(cpf):
+    cpf = re.sub(r"\D", "", cpf)
+    return f"{cpf[0:3]}.{cpf[3:6]}.{cpf[6:9]}-{cpf[9:11]}"
+
+
+def valida_telefone(tel):
+    tel = re.sub(r"\D", "", tel)
+    return len(tel) in (10, 11)
+
+
+def valida_data_nascimento(data_str):
+    try:
+        data = datetime.strptime(data_str.strip(), "%d/%m/%Y")
+    except ValueError:
+        return False, None
+
+    hoje = datetime.now()
+    if data > hoje:
+        return False, None
+
+    idade = hoje.year - data.year - ((hoje.month, hoje.day) < (data.month, data.day))
+    if idade < 0 or idade > 120:
+        return False, None
+
+    return True, idade
+
+
+def valida_endereco(endereco):
+    return len(endereco.strip()) >= 5
+
+
+class AcademiaApp:
+
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Mybax Combat - Sistema de Matrícula")
+        self.root.geometry("620x860")
+        self.root.config(bg=COR_CINZA_TWEED)
+        self.root.resizable(False, False)
+
+        self.alunos = []
+        self.check_vars = {}
+
+        self._configurar_estilos()
+
+        # ---------- Cabeçalho ----------
+        header = tk.Frame(root, bg=COR_PRETO, height=90)
+        header.pack(fill="x", side="top")
+        header.pack_propagate(False)
+
+        tk.Label(
+            header,
+            text="MYBAX COMBAT",
+            font=(FONTE_PADRAO, 20, "bold"),
+            bg=COR_PRETO,
+            fg=COR_AGUA_MARINHA,
+        ).pack(pady=(14, 0))
+        tk.Label(
+            header,
+            text="Sistema de Matrícula",
+            font=(FONTE_PADRAO, 10),
+            bg=COR_PRETO,
+            fg=COR_BRANCO,
+        ).pack()
+
+        # ---------- Área rolável ----------
+        canvas = tk.Canvas(root, bg=COR_CINZA_TWEED, highlightthickness=0)
+        scrollbar_geral = ttk.Scrollbar(root, orient="vertical", command=canvas.yview)
+        self.frame_scroll = tk.Frame(canvas, bg=COR_CINZA_TWEED)
+
+        self.frame_scroll.bind(
+            "<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        canvas.create_window((0, 0), window=self.frame_scroll, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar_geral.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar_geral.pack(side="right", fill="y")
+
+        root_frame = self.frame_scroll
+
+        # ---------- Cartão do formulário ----------
+        card_form = tk.Frame(root_frame, bg=COR_BRANCO, bd=0, highlightthickness=1,
+                              highlightbackground=COR_CINZA_TWEED_ESCURO)
+        card_form.pack(pady=20, padx=25, fill="x")
+
+        tk.Label(
+            card_form,
+            text="Dados do Aluno",
+            font=(FONTE_PADRAO, 13, "bold"),
+            bg=COR_BRANCO,
+            fg=COR_PRETO,
+        ).pack(anchor="w", padx=18, pady=(15, 5))
+
+        self.frame_form = tk.Frame(card_form, bg=COR_BRANCO)
+        self.frame_form.pack(padx=18, pady=(0, 15), fill="x")
+
+        def campo(label_texto):
+            tk.Label(
+                self.frame_form,
+                text=label_texto,
+                font=(FONTE_PADRAO, 9, "bold"),
+                bg=COR_BRANCO,
+                fg=COR_AGUA_MARINHA_ESCURO,
+                anchor="w",
+            ).pack(fill="x", pady=(8, 2))
+            entry = tk.Entry(
+                self.frame_form,
+                font=(FONTE_PADRAO, 11),
+                bg=COR_CINZA_TWEED,
+                fg=COR_PRETO,
+                relief="flat",
+                insertbackground=COR_PRETO,
+                highlightthickness=1,
+                highlightbackground=COR_CINZA_TWEED_ESCURO,
+                highlightcolor=COR_AGUA_MARINHA,
+            )
+            entry.pack(fill="x", ipady=6)
+            return entry
+
+        self.entry_nome = campo("NOME DO ALUNO")
+        self.entry_idade = campo("IDADE")
+        self.entry_cpf = campo("CPF")
+        self.entry_nascimento = campo("DATA DE NASCIMENTO (dd/mm/aaaa)")
+        self.entry_telefone = campo("TELEFONE (DDD + número)")
+        self.entry_endereco = campo("ENDEREÇO COMPLETO")
+
+        tk.Label(
+            self.frame_form,
+            text="PLANO",
+            font=(FONTE_PADRAO, 9, "bold"),
+            bg=COR_BRANCO,
+            fg=COR_AGUA_MARINHA_ESCURO,
+            anchor="w",
+        ).pack(fill="x", pady=(8, 2))
+        self.combo_plano = ttk.Combobox(
+            self.frame_form,
+            font=(FONTE_PADRAO, 11),
+            state="readonly",
+            style="Moderno.TCombobox",
+            values=["Mensal", "Trimestral", "Semestral", "Anual"],
+        )
+        self.combo_plano.current(0)
+        self.combo_plano.pack(fill="x", ipady=4)
+
+        # ---------- Cartão de saúde ----------
+        card_saude = tk.Frame(root_frame, bg=COR_BRANCO, highlightthickness=1,
+                               highlightbackground=COR_CINZA_TWEED_ESCURO)
+        card_saude.pack(pady=(0, 20), padx=25, fill="x")
+
+        tk.Label(
+            card_saude,
+            text="Condições de Saúde",
+            font=(FONTE_PADRAO, 13, "bold"),
+            bg=COR_BRANCO,
+            fg=COR_PRETO,
+        ).pack(anchor="w", padx=18, pady=(15, 5))
+
+        self.frame_saude = tk.Frame(card_saude, bg=COR_BRANCO)
+        self.frame_saude.pack(padx=18, pady=(0, 15), fill="x")
+
+        for condicao in CONDICOES_SAUDE:
+            var = tk.BooleanVar()
+            tk.Checkbutton(
+                self.frame_saude,
+                text=condicao,
+                variable=var,
+                bg=COR_BRANCO,
+                fg=COR_PRETO,
+                font=(FONTE_PADRAO, 10),
+                activebackground=COR_BRANCO,
+                selectcolor=COR_CINZA_TWEED,
+                anchor="w",
+            ).pack(fill="x", anchor="w", pady=2)
+            self.check_vars[condicao] = var
+
+        frame_outra = tk.Frame(self.frame_saude, bg=COR_BRANCO)
+        frame_outra.pack(fill="x", pady=(6, 0))
+        self.var_outra = tk.BooleanVar()
+        tk.Checkbutton(
+            frame_outra,
+            text="Outra:",
+            variable=self.var_outra,
+            bg=COR_BRANCO,
+            fg=COR_PRETO,
+            font=(FONTE_PADRAO, 10),
+            selectcolor=COR_CINZA_TWEED,
+        ).pack(side=tk.LEFT)
+        self.entry_outra_condicao = tk.Entry(
+            frame_outra, font=(FONTE_PADRAO, 10), bg=COR_CINZA_TWEED, relief="flat"
+        )
+        self.entry_outra_condicao.pack(side=tk.LEFT, padx=8, ipady=3, fill="x", expand=True)
+
+        # ---------- Botões ----------
+        frame_botoes = tk.Frame(root_frame, bg=COR_CINZA_TWEED)
+        frame_botoes.pack(pady=(0, 15), padx=25, fill="x")
+
+        def botao(pai, texto, cor_fundo, cor_texto, comando):
+            b = tk.Button(
+                pai,
+                text=texto,
+                font=(FONTE_PADRAO, 10, "bold"),
+                bg=cor_fundo,
+                fg=cor_texto,
+                relief="flat",
+                activebackground=COR_AGUA_MARINHA_ESCURO,
+                activeforeground=COR_BRANCO,
+                cursor="hand2",
+                command=comando,
+                padx=10,
+                pady=8,
+            )
+            return b
+
+        botao(frame_botoes, "MATRICULAR", COR_AGUA_MARINHA, COR_BRANCO, self.matricular).grid(
+            row=0, column=0, padx=4, pady=4, sticky="ew"
+        )
+        botao(frame_botoes, "VER DETALHES", COR_PRETO, COR_BRANCO, self.ver_detalhes).grid(
+            row=0, column=1, padx=4, pady=4, sticky="ew"
+        )
+        botao(frame_botoes, "REMOVER", COR_CINZA_TWEED_ESCURO, COR_BRANCO, self.remover_selecionado).grid(
+            row=1, column=0, padx=4, pady=4, sticky="ew"
+        )
+        botao(frame_botoes, "LIMPAR LISTA", "#8C2F2F", COR_BRANCO, self.limpar_lista).grid(
+            row=1, column=1, padx=4, pady=4, sticky="ew"
+        )
+        botao(frame_botoes, "SALVAR DADOS", COR_AGUA_MARINHA_ESCURO, COR_BRANCO, self.salvar_dados).grid(
+            row=2, column=0, columnspan=2, padx=4, pady=4, sticky="ew"
+        )
+
+        frame_botoes.columnconfigure(0, weight=1)
+        frame_botoes.columnconfigure(1, weight=1)
+
+        # ---------- Busca ----------
+        frame_busca = tk.Frame(root_frame, bg=COR_CINZA_TWEED)
+        frame_busca.pack(pady=(0, 10), padx=25, fill="x")
+        tk.Label(
+            frame_busca, text="BUSCAR", font=(FONTE_PADRAO, 9, "bold"),
+            bg=COR_CINZA_TWEED, fg=COR_PRETO,
+        ).pack(anchor="w")
+        self.entry_busca = tk.Entry(
+            frame_busca, font=(FONTE_PADRAO, 10), bg=COR_BRANCO, relief="flat",
+            highlightthickness=1, highlightbackground=COR_CINZA_TWEED_ESCURO, highlightcolor=COR_AGUA_MARINHA,
+        )
+        self.entry_busca.pack(fill="x", ipady=6)
+        self.entry_busca.bind("<KeyRelease>", self.buscar_aluno)
+
+        # ---------- Tabela (Treeview) ----------
+        frame_lista = tk.Frame(root_frame, bg=COR_CINZA_TWEED)
+        frame_lista.pack(pady=10, padx=25, fill="both", expand=True)
+
+        colunas = ("nome", "cpf", "telefone", "plano")
+        self.tree = ttk.Treeview(
+            frame_lista, columns=colunas, show="headings", height=10, style="Moderno.Treeview"
+        )
+        self.tree.heading("nome", text="Nome")
+        self.tree.heading("cpf", text="CPF")
+        self.tree.heading("telefone", text="Telefone")
+        self.tree.heading("plano", text="Plano")
+        self.tree.column("nome", width=180)
+        self.tree.column("cpf", width=120)
+        self.tree.column("telefone", width=110)
+        self.tree.column("plano", width=90)
+
+        scroll_tree = ttk.Scrollbar(frame_lista, orient="vertical", command=self.tree.yview)
+        self.tree.configure(yscrollcommand=scroll_tree.set)
+        self.tree.pack(side=tk.LEFT, fill="both", expand=True)
+        scroll_tree.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self.label_contador = tk.Label(
+            root_frame,
+            text="Total de matriculados: 0",
+            font=(FONTE_PADRAO, 10, "bold"),
+            bg=COR_CINZA_TWEED,
+            fg=COR_PRETO,
+        )
+        self.label_contador.pack(pady=(0, 20))
+
+        self.carregar_dados()
+
+    def _configurar_estilos(self):
+        style = ttk.Style()
+        style.theme_use("clam")
+
+        style.configure(
+            "Moderno.TCombobox",
+            fieldbackground=COR_CINZA_TWEED,
+            background=COR_CINZA_TWEED,
+            foreground=COR_PRETO,
+            arrowcolor=COR_AGUA_MARINHA_ESCURO,
+            relief="flat",
+        )
+
+        style.configure(
+            "Moderno.Treeview",
+            background=COR_BRANCO,
+            fieldbackground=COR_BRANCO,
+            foreground=COR_PRETO,
+            rowheight=28,
+            font=(FONTE_PADRAO, 10),
+            borderwidth=0,
+        )
+        style.configure(
+            "Moderno.Treeview.Heading",
+            background=COR_AGUA_MARINHA,
+            foreground=COR_BRANCO,
+            font=(FONTE_PADRAO, 10, "bold"),
+            relief="flat",
+        )
+        style.map(
+            "Moderno.Treeview",
+            background=[("selected", COR_AGUA_MARINHA_ESCURO)],
+            foreground=[("selected", COR_BRANCO)],
+        )
+        style.map("Moderno.Treeview.Heading", background=[("active", COR_AGUA_MARINHA_ESCURO)])
+
+    def coletar_condicoes(self):
+        condicoes = [c for c, v in self.check_vars.items() if v.get()]
+        if self.var_outra.get():
+            outra = self.entry_outra_condicao.get().strip()
+            if outra:
+                condicoes.append(f"Outra: {outra}")
+        return condicoes
+
+    def limpar_condicoes(self):
+        for var in self.check_vars.values():
+            var.set(False)
+        self.var_outra.set(False)
+        self.entry_outra_condicao.delete(0, tk.END)
+
+    def atualizar_lista(self, filtro=None):
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+
+        for indice, aluno in enumerate(self.alunos):
+            if filtro and filtro not in aluno["nome"].lower() and filtro not in aluno["cpf"]:
+                continue
+            self.tree.insert(
+                "", tk.END, iid=str(indice),
+                values=(aluno["nome"], formata_cpf(aluno["cpf"]), aluno["telefone"], aluno["plano"]),
+            )
+        self.label_contador.config(text=f"Total de matriculados: {len(self.alunos)}")
+
+    def matricular(self):
+        nome = self.entry_nome.get().strip()
+        idade_txt = self.entry_idade.get().strip()
+        cpf = self.entry_cpf.get().strip()
+        nascimento = self.entry_nascimento.get().strip()
+        telefone = self.entry_telefone.get().strip()
+        endereco = self.entry_endereco.get().strip()
+        plano = self.combo_plano.get().strip()
+
+        if not all([nome, idade_txt, cpf, nascimento, telefone, endereco, plano]):
+            messagebox.showwarning("Aviso", "Preencha todos os campos antes de matricular.")
+            return
+
+        if not idade_txt.isdigit():
+            messagebox.showerror("Erro", "A idade deve conter apenas números.")
+            return
+
+        if not valida_cpf(cpf):
+            messagebox.showerror("Erro", "CPF inválido. Verifique os números digitados.")
+            return
+
+        data_valida, idade_calculada = valida_data_nascimento(nascimento)
+        if not data_valida:
+            messagebox.showerror("Erro", "Data de nascimento inválida. Use o formato dd/mm/aaaa.")
+            return
+
+        if not valida_telefone(telefone):
+            messagebox.showerror("Erro", "Telefone inválido. Informe DDD + número (10 ou 11 dígitos).")
+            return
+
+        if not valida_endereco(endereco):
+            messagebox.showerror("Erro", "Endereço muito curto ou inválido.")
+            return
+
+        if int(idade_txt) != idade_calculada:
+            confirmar = messagebox.askyesno(
+                "Divergência de idade",
+                f"A idade informada ({idade_txt}) não corresponde à idade calculada "
+                f"pela data de nascimento ({idade_calculada}). Deseja continuar mesmo assim?",
+            )
+            if not confirmar:
+                return
+
+        cpf_limpo = re.sub(r"\D", "", cpf)
+        for existente in self.alunos:
+            if existente["cpf"] == cpf_limpo:
+                messagebox.showerror("Erro", "Já existe um aluno cadastrado com este CPF.")
+                return
+
+        aluno = {
+            "nome": nome,
+            "idade": idade_txt,
+            "cpf": cpf_limpo,
+            "nascimento": nascimento,
+            "telefone": telefone,
+            "endereco": endereco,
+            "plano": plano,
+            "condicoes_saude": self.coletar_condicoes(),
+        }
+        self.alunos.append(aluno)
+        self.atualizar_lista()
+
+        for entry in (
+            self.entry_nome, self.entry_idade, self.entry_cpf,
+            self.entry_nascimento, self.entry_telefone, self.entry_endereco,
+        ):
+            entry.delete(0, tk.END)
+        self.combo_plano.current(0)
+        self.limpar_condicoes()
+        self.entry_nome.focus()
+
+        self.salvar_dados(mostrar_aviso=False)
+
+    def ver_detalhes(self):
+        selecionado = self.tree.selection()
+        if not selecionado:
+            messagebox.showwarning("Aviso", "Selecione um aluno para ver os detalhes.")
+            return
+
+        indice = int(selecionado[0])
+        aluno = self.alunos[indice]
+        condicoes = ", ".join(aluno["condicoes_saude"]) if aluno["condicoes_saude"] else "Nenhuma informada"
+
+        detalhes = (
+            f"Nome: {aluno['nome']}\n"
+            f"Idade: {aluno['idade']}\n"
+            f"CPF: {formata_cpf(aluno['cpf'])}\n"
+            f"Nascimento: {aluno['nascimento']}\n"
+            f"Telefone: {aluno['telefone']}\n"
+            f"Endereço: {aluno['endereco']}\n"
+            f"Plano: {aluno['plano']}\n"
+            f"Condições de saúde: {condicoes}"
+        )
+        messagebox.showinfo("Detalhes do aluno", detalhes)
+
+    def remover_selecionado(self):
+        selecionado = self.tree.selection()
+        if not selecionado:
+            messagebox.showwarning("Aviso", "Selecione um aluno para remover.")
+            return
+
+        indice = int(selecionado[0])
+        confirmar = messagebox.askyesno(
+            "Confirmar remoção", f"Deseja remover '{self.alunos[indice]['nome']}' da lista?"
+        )
+        if confirmar:
+            del self.alunos[indice]
+            self.atualizar_lista()
+            self.salvar_dados(mostrar_aviso=False)
+
+    def limpar_lista(self):
+        if not self.alunos:
+            return
+        confirmar = messagebox.askyesno(
+            "Confirmar", "Deseja realmente limpar toda a lista de matriculados?"
+        )
+        if confirmar:
+            self.alunos = []
+            self.atualizar_lista()
+            self.salvar_dados(mostrar_aviso=False)
+
+    def buscar_aluno(self, event=None):
+        termo = self.entry_busca.get().strip().lower()
+        self.atualizar_lista(filtro=termo if termo else None)
+
+    def salvar_dados(self, mostrar_aviso=True):
+        try:
+            with open(ARQUIVO_DADOS, "w", encoding="utf-8") as f:
+                json.dump(self.alunos, f, ensure_ascii=False, indent=2)
+            if mostrar_aviso:
+                messagebox.showinfo("Sucesso", "Dados salvos com sucesso!")
+        except Exception as e:
+            if mostrar_aviso:
+                messagebox.showerror("Erro", f"Não foi possível salvar os dados.\n{e}")
+
+    def carregar_dados(self):
+        if os.path.exists(ARQUIVO_DADOS):
+            try:
+                with open(ARQUIVO_DADOS, "r", encoding="utf-8") as f:
+                    self.alunos = json.load(f)
+            except Exception:
+                self.alunos = []
+        self.atualizar_lista()
+
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = AcademiaApp(root)
+    root.mainloop()
+
+    import tkinter as tk
+from tkinter import ttk, messagebox
+import json
+import os
+import re
+from datetime import datetime
+
+ARQUIVO_DADOS = "matriculados.json"
+
+CONDICOES_SAUDE = [
+    "Asma",
+    "Diabetes",
+    "Hipertensão",
+    "Distrofia Muscular",
+    "Problema Cardíaco",
+    "Epilepsia",
+    "Lesão/Cirurgia recente",
+]
+
+FORMAS_PAGAMENTO = ["Dinheiro", "Pix", "Cartão de Débito", "Cartão de Crédito", "Boleto"]
+
+IDADE_MINIMA_SEM_RESPONSAVEL = 14
+
+# ---------- Paleta de cores ----------
+COR_PRETO = "#161616"
+COR_BRANCO = "#FFFFFF"
+COR_CINZA_TWEED = "#A8A296"
+COR_CINZA_TWEED_ESCURO = "#8C8677"
+COR_AGUA_MARINHA = "#159E93"
+COR_AGUA_MARINHA_ESCURO = "#0E7A71"
+FONTE_PADRAO = "Segoe UI"
+
+
+def valida_cpf(cpf):
+    cpf = re.sub(r"\D", "", cpf)
+    if len(cpf) != 11:
+        return False
+    if cpf == cpf[0] * 11:
+        return False
+
+    soma = sum(int(cpf[i]) * (10 - i) for i in range(9))
+    resto = (soma * 10) % 11
+    digito1 = 0 if resto == 10 else resto
+    if digito1 != int(cpf[9]):
+        return False
+
+    soma = sum(int(cpf[i]) * (11 - i) for i in range(10))
+    resto = (soma * 10) % 11
+    digito2 = 0 if resto == 10 else resto
+    if digito2 != int(cpf[10]):
+        return False
+
+    return True
+
+
+def formata_cpf(cpf):
+    cpf = re.sub(r"\D", "", cpf)
+    return f"{cpf[0:3]}.{cpf[3:6]}.{cpf[6:9]}-{cpf[9:11]}"
+
+
+def valida_telefone(tel):
+    tel = re.sub(r"\D", "", tel)
+    return len(tel) in (10, 11)
+
+
+def valida_data_nascimento(data_str):
+    try:
+        data = datetime.strptime(data_str.strip(), "%d/%m/%Y")
+    except ValueError:
+        return False, None
+
+    hoje = datetime.now()
+    if data > hoje:
+        return False, None
+
+    idade = hoje.year - data.year - ((hoje.month, hoje.day) < (data.month, data.day))
+    if idade < 0 or idade > 120:
+        return False, None
+
+    return True, idade
+
+
+def valida_endereco(endereco):
+    return len(endereco.strip()) >= 5
+
+
+def valida_nome(nome):
+    nome = nome.strip()
+    if len(re.sub(r"\s", "", nome)) <= 2:
+        return False
+    if not re.fullmatch(r"[A-Za-zÀ-ÖØ-öø-ÿ' ]+", nome):
+        return False
+    partes = nome.split()
+    if any(len(parte) < 2 for parte in partes):
+        return False
+    return True
+
+
+class AcademiaApp:
+
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Mybax Combat - Sistema de Matrícula")
+        self.root.geometry("640x1150")
+        self.root.config(bg=COR_CINZA_TWEED)
+        self.root.resizable(False, False)
+
+        self.alunos = []
+        self.check_vars = {}
+
+        self._configurar_estilos()
+
+        # ---------- Cabeçalho ----------
+        header = tk.Frame(root, bg=COR_PRETO, height=90)
+        header.pack(fill="x", side="top")
+        header.pack_propagate(False)
+
+        tk.Label(
+            header, text="MYBAX COMBAT", font=(FONTE_PADRAO, 20, "bold"),
+            bg=COR_PRETO, fg=COR_AGUA_MARINHA,
+        ).pack(pady=(14, 0))
+        tk.Label(
+            header, text="Sistema de Matrícula", font=(FONTE_PADRAO, 10),
+            bg=COR_PRETO, fg=COR_BRANCO,
+        ).pack()
+
+        # ---------- Área rolável ----------
+        canvas = tk.Canvas(root, bg=COR_CINZA_TWEED, highlightthickness=0)
+        scrollbar_geral = ttk.Scrollbar(root, orient="vertical", command=canvas.yview)
+        self.frame_scroll = tk.Frame(canvas, bg=COR_CINZA_TWEED)
+
+        self.frame_scroll.bind(
+            "<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        canvas.create_window((0, 0), window=self.frame_scroll, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar_geral.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar_geral.pack(side="right", fill="y")
+
+        root_frame = self.frame_scroll
+
+        # ---------- Cartão do formulário ----------
+        card_form = tk.Frame(root_frame, bg=COR_BRANCO, highlightthickness=1,
+                              highlightbackground=COR_CINZA_TWEED_ESCURO)
+        card_form.pack(pady=20, padx=25, fill="x")
+
+        tk.Label(
+            card_form, text="Dados do Aluno", font=(FONTE_PADRAO, 13, "bold"),
+            bg=COR_BRANCO, fg=COR_PRETO,
+        ).pack(anchor="w", padx=18, pady=(15, 5))
+
+        self.frame_form = tk.Frame(card_form, bg=COR_BRANCO)
+        self.frame_form.pack(padx=18, pady=(0, 15), fill="x")
+
+        def campo(pai, label_texto):
+            tk.Label(
+                pai, text=label_texto, font=(FONTE_PADRAO, 9, "bold"),
+                bg=COR_BRANCO, fg=COR_AGUA_MARINHA_ESCURO, anchor="w",
+            ).pack(fill="x", pady=(8, 2))
+            entry = tk.Entry(
+                pai, font=(FONTE_PADRAO, 11), bg=COR_CINZA_TWEED, fg=COR_PRETO,
+                relief="flat", insertbackground=COR_PRETO,
+                highlightthickness=1, highlightbackground=COR_CINZA_TWEED_ESCURO,
+                highlightcolor=COR_AGUA_MARINHA,
+            )
+            entry.pack(fill="x", ipady=6)
+            return entry
+
+        self.entry_nome = campo(self.frame_form, "NOME DO ALUNO")
+        self.entry_idade = campo(self.frame_form, "IDADE")
+        self.entry_cpf = campo(self.frame_form, "CPF")
+        self.entry_nascimento = campo(self.frame_form, "DATA DE NASCIMENTO (dd/mm/aaaa)")
+        self.entry_telefone = campo(self.frame_form, "TELEFONE (DDD + número)")
+        self.entry_endereco = campo(self.frame_form, "ENDEREÇO COMPLETO")
+
+        tk.Label(
+            self.frame_form, text="PLANO", font=(FONTE_PADRAO, 9, "bold"),
+            bg=COR_BRANCO, fg=COR_AGUA_MARINHA_ESCURO, anchor="w",
+        ).pack(fill="x", pady=(8, 2))
+        self.combo_plano = ttk.Combobox(
+            self.frame_form, font=(FONTE_PADRAO, 11), state="readonly",
+            style="Moderno.TCombobox",
+            values=["Mensal", "Trimestral", "Semestral", "Anual"],
+        )
+        self.combo_plano.current(0)
+        self.combo_plano.pack(fill="x", ipady=4)
+
+        tk.Label(
+            self.frame_form, text="FORMA DE PAGAMENTO", font=(FONTE_PADRAO, 9, "bold"),
+            bg=COR_BRANCO, fg=COR_AGUA_MARINHA_ESCURO, anchor="w",
+        ).pack(fill="x", pady=(8, 2))
+        self.combo_pagamento = ttk.Combobox(
+            self.frame_form, font=(FONTE_PADRAO, 11), state="readonly",
+            style="Moderno.TCombobox", values=FORMAS_PAGAMENTO,
+        )
+        self.combo_pagamento.current(0)
+        self.combo_pagamento.pack(fill="x", ipady=4)
+
+        # ---------- Cartão do responsável ----------
+        card_resp = tk.Frame(root_frame, bg=COR_BRANCO, highlightthickness=1,
+                              highlightbackground=COR_CINZA_TWEED_ESCURO)
+        card_resp.pack(pady=(0, 20), padx=25, fill="x")
+
+        tk.Label(
+            card_resp, text="Dados do Responsável (obrigatório para menores de 14 anos)",
+            font=(FONTE_PADRAO, 13, "bold"), bg=COR_BRANCO, fg=COR_PRETO,
+            wraplength=520, justify="left",
+        ).pack(anchor="w", padx=18, pady=(15, 5))
+
+        self.frame_resp = tk.Frame(card_resp, bg=COR_BRANCO)
+        self.frame_resp.pack(padx=18, pady=(0, 10), fill="x")
+
+        self.entry_resp_nome = campo(self.frame_resp, "NOME DO RESPONSÁVEL")
+        self.entry_resp_cpf = campo(self.frame_resp, "CPF DO RESPONSÁVEL")
+        self.entry_resp_telefone = campo(self.frame_resp, "TELEFONE DO RESPONSÁVEL")
+        self.entry_resp_parentesco = campo(self.frame_resp, "GRAU DE PARENTESCO")
+
+        self.var_autorizacao = tk.BooleanVar()
+        tk.Checkbutton(
+            card_resp,
+            text="Declaro ser o responsável legal e autorizo a matrícula do menor.",
+            variable=self.var_autorizacao,
+            bg=COR_BRANCO, fg=COR_PRETO, font=(FONTE_PADRAO, 10),
+            selectcolor=COR_CINZA_TWEED, wraplength=520, justify="left",
+            anchor="w",
+        ).pack(fill="x", padx=18, pady=(0, 15))
+
+        # ---------- Cartão de saúde ----------
+        card_saude = tk.Frame(root_frame, bg=COR_BRANCO, highlightthickness=1,
+                               highlightbackground=COR_CINZA_TWEED_ESCURO)
+        card_saude.pack(pady=(0, 20), padx=25, fill="x")
+
+        tk.Label(
+            card_saude, text="Condições de Saúde", font=(FONTE_PADRAO, 13, "bold"),
+            bg=COR_BRANCO, fg=COR_PRETO,
+        ).pack(anchor="w", padx=18, pady=(15, 5))
+
+        self.frame_saude = tk.Frame(card_saude, bg=COR_BRANCO)
+        self.frame_saude.pack(padx=18, pady=(0, 15), fill="x")
+
+        for condicao in CONDICOES_SAUDE:
+            var = tk.BooleanVar()
+            tk.Checkbutton(
+                self.frame_saude, text=condicao, variable=var,
+                bg=COR_BRANCO, fg=COR_PRETO, font=(FONTE_PADRAO, 10),
+                activebackground=COR_BRANCO, selectcolor=COR_CINZA_TWEED, anchor="w",
+            ).pack(fill="x", anchor="w", pady=2)
+            self.check_vars[condicao] = var
+
+        frame_outra = tk.Frame(self.frame_saude, bg=COR_BRANCO)
+        frame_outra.pack(fill="x", pady=(6, 0))
+        self.var_outra = tk.BooleanVar()
+        tk.Checkbutton(
+            frame_outra, text="Outra:", variable=self.var_outra,
+            bg=COR_BRANCO, fg=COR_PRETO, font=(FONTE_PADRAO, 10),
+            selectcolor=COR_CINZA_TWEED,
+        ).pack(side=tk.LEFT)
+        self.entry_outra_condicao = tk.Entry(
+            frame_outra, font=(FONTE_PADRAO, 10), bg=COR_CINZA_TWEED, relief="flat"
+        )
+        self.entry_outra_condicao.pack(side=tk.LEFT, padx=8, ipady=3, fill="x", expand=True)
+
+        # ---------- Botões ----------
+        frame_botoes = tk.Frame(root_frame, bg=COR_CINZA_TWEED)
+        frame_botoes.pack(pady=(0, 15), padx=25, fill="x")
+
+        def botao(pai, texto, cor_fundo, cor_texto, comando):
+            return tk.Button(
+                pai, text=texto, font=(FONTE_PADRAO, 10, "bold"),
+                bg=cor_fundo, fg=cor_texto, relief="flat",
+                activebackground=COR_AGUA_MARINHA_ESCURO, activeforeground=COR_BRANCO,
+                cursor="hand2", command=comando, padx=10, pady=8,
+            )
+
+        botao(frame_botoes, "MATRICULAR", COR_AGUA_MARINHA, COR_BRANCO, self.matricular).grid(
+            row=0, column=0, padx=4, pady=4, sticky="ew"
+        )
+        botao(frame_botoes, "VER DETALHES", COR_PRETO, COR_BRANCO, self.ver_detalhes).grid(
+            row=0, column=1, padx=4, pady=4, sticky="ew"
+        )
+        botao(frame_botoes, "REMOVER", COR_CINZA_TWEED_ESCURO, COR_BRANCO, self.remover_selecionado).grid(
+            row=1, column=0, padx=4, pady=4, sticky="ew"
+        )
+        botao(frame_botoes, "LIMPAR LISTA", "#8C2F2F", COR_BRANCO, self.limpar_lista).grid(
+            row=1, column=1, padx=4, pady=4, sticky="ew"
+        )
+        botao(frame_botoes, "SALVAR DADOS", COR_AGUA_MARINHA_ESCURO, COR_BRANCO, self.salvar_dados).grid(
+            row=2, column=0, columnspan=2, padx=4, pady=4, sticky="ew"
+        )
+
+        frame_botoes.columnconfigure(0, weight=1)
+        frame_botoes.columnconfigure(1, weight=1)
+
+        # ---------- Busca ----------
+        frame_busca = tk.Frame(root_frame, bg=COR_CINZA_TWEED)
+        frame_busca.pack(pady=(0, 10), padx=25, fill="x")
+        tk.Label(
+            frame_busca, text="BUSCAR", font=(FONTE_PADRAO, 9, "bold"),
+            bg=COR_CINZA_TWEED, fg=COR_PRETO,
+        ).pack(anchor="w")
+        self.entry_busca = tk.Entry(
+            frame_busca, font=(FONTE_PADRAO, 10), bg=COR_BRANCO, relief="flat",
+            highlightthickness=1, highlightbackground=COR_CINZA_TWEED_ESCURO,
+            highlightcolor=COR_AGUA_MARINHA,
+        )
+        self.entry_busca.pack(fill="x", ipady=6)
+        self.entry_busca.bind("<KeyRelease>", self.buscar_aluno)
+
+        # ---------- Tabela (Treeview) ----------
+        frame_lista = tk.Frame(root_frame, bg=COR_CINZA_TWEED)
+        frame_lista.pack(pady=10, padx=25, fill="both", expand=True)
+
+        colunas = ("nome", "cpf", "telefone", "plano", "pagamento")
+        self.tree = ttk.Treeview(
+            frame_lista, columns=colunas, show="headings", height=10, style="Moderno.Treeview"
+        )
+        self.tree.heading("nome", text="Nome")
+        self.tree.heading("cpf", text="CPF")
+        self.tree.heading("telefone", text="Telefone")
+        self.tree.heading("plano", text="Plano")
+        self.tree.heading("pagamento", text="Pagamento")
+        self.tree.column("nome", width=160)
+        self.tree.column("cpf", width=110)
+        self.tree.column("telefone", width=100)
+        self.tree.column("plano", width=80)
+        self.tree.column("pagamento", width=100)
+
+        scroll_tree = ttk.Scrollbar(frame_lista, orient="vertical", command=self.tree.yview)
+        self.tree.configure(yscrollcommand=scroll_tree.set)
+        self.tree.pack(side=tk.LEFT, fill="both", expand=True)
+        scroll_tree.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self.label_contador = tk.Label(
+            root_frame, text="Total de matriculados: 0", font=(FONTE_PADRAO, 10, "bold"),
+            bg=COR_CINZA_TWEED, fg=COR_PRETO,
+        )
+        self.label_contador.pack(pady=(0, 20))
+
+        self.carregar_dados()
+
+    def _configurar_estilos(self):
+        style = ttk.Style()
+        style.theme_use("clam")
+
+        style.configure(
+            "Moderno.TCombobox", fieldbackground=COR_CINZA_TWEED, background=COR_CINZA_TWEED,
+            foreground=COR_PRETO, arrowcolor=COR_AGUA_MARINHA_ESCURO, relief="flat",
+        )
+
+        style.configure(
+            "Moderno.Treeview", background=COR_BRANCO, fieldbackground=COR_BRANCO,
+            foreground=COR_PRETO, rowheight=28, font=(FONTE_PADRAO, 10), borderwidth=0,
+        )
+        style.configure(
+            "Moderno.Treeview.Heading", background=COR_AGUA_MARINHA, foreground=COR_BRANCO,
+            font=(FONTE_PADRAO, 10, "bold"), relief="flat",
+        )
+        style.map(
+            "Moderno.Treeview",
+            background=[("selected", COR_AGUA_MARINHA_ESCURO)],
+            foreground=[("selected", COR_BRANCO)],
+        )
+        style.map("Moderno.Treeview.Heading", background=[("active", COR_AGUA_MARINHA_ESCURO)])
+
+    def coletar_condicoes(self):
+        condicoes = [c for c, v in self.check_vars.items() if v.get()]
+        if self.var_outra.get():
+            outra = self.entry_outra_condicao.get().strip()
+            if outra:
+                condicoes.append(f"Outra: {outra}")
+        return condicoes
+
+    def limpar_condicoes(self):
+        for var in self.check_vars.values():
+            var.set(False)
+        self.var_outra.set(False)
+        self.entry_outra_condicao.delete(0, tk.END)
+
+    def atualizar_lista(self, filtro=None):
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+
+        for indice, aluno in enumerate(self.alunos):
+            if filtro and filtro not in aluno["nome"].lower() and filtro not in aluno["cpf"]:
+                continue
+            self.tree.insert(
+                "", tk.END, iid=str(indice),
+                values=(
+                    aluno["nome"], formata_cpf(aluno["cpf"]), aluno["telefone"],
+                    aluno["plano"], aluno.get("pagamento", "-"),
+                ),
+            )
+        self.label_contador.config(text=f"Total de matriculados: {len(self.alunos)}")
+
+    def matricular(self):
+        nome = self.entry_nome.get().strip()
+        idade_txt = self.entry_idade.get().strip()
+        cpf = self.entry_cpf.get().strip()
+        nascimento = self.entry_nascimento.get().strip()
+        telefone = self.entry_telefone.get().strip()
+        endereco = self.entry_endereco.get().strip()
+        plano = self.combo_plano.get().strip()
+        pagamento = self.combo_pagamento.get().strip()
+
+        if not all([nome, idade_txt, cpf, nascimento, telefone, endereco, plano, pagamento]):
+            messagebox.showwarning("Aviso", "Preencha todos os campos antes de matricular.")
+            return
+
+        if not valida_nome(nome):
+            messagebox.showerror(
+                "Erro",
+                "Nome inválido. Digite o nome completo, sem números ou símbolos, "
+                "e cada parte do nome deve ter pelo menos 2 letras.",
+            )
+            return
+
+        if not idade_txt.isdigit():
+            messagebox.showerror("Erro", "A idade deve conter apenas números.")
+            return
+
+        if not valida_cpf(cpf):
+            messagebox.showerror("Erro", "CPF inválido. Verifique os números digitados.")
+            return
+
+        data_valida, idade_calculada = valida_data_nascimento(nascimento)
+        if not data_valida:
+            messagebox.showerror("Erro", "Data de nascimento inválida. Use o formato dd/mm/aaaa.")
+            return
+
+        if not valida_telefone(telefone):
+            messagebox.showerror("Erro", "Telefone inválido. Informe DDD + número (10 ou 11 dígitos).")
+            return
+
+        if not valida_endereco(endereco):
+            messagebox.showerror("Erro", "Endereço muito curto ou inválido.")
+            return
+
+        idade = int(idade_txt)
+        if idade != idade_calculada:
+            confirmar = messagebox.askyesno(
+                "Divergência de idade",
+                f"A idade informada ({idade_txt}) não corresponde à idade calculada "
+                f"pela data de nascimento ({idade_calculada}). Deseja continuar mesmo assim?",
+            )
+            if not confirmar:
+                return
+
+        dados_responsavel = None
+        if idade < IDADE_MINIMA_SEM_RESPONSAVEL:
+            resp_nome = self.entry_resp_nome.get().strip()
+            resp_cpf = self.entry_resp_cpf.get().strip()
+            resp_telefone = self.entry_resp_telefone.get().strip()
+            resp_parentesco = self.entry_resp_parentesco.get().strip()
+
+            if not all([resp_nome, resp_cpf, resp_telefone, resp_parentesco]):
+                messagebox.showwarning(
+                    "Aviso",
+                    f"Alunos com menos de {IDADE_MINIMA_SEM_RESPONSAVEL} anos precisam "
+                    "dos dados completos do responsável.",
+                )
+                return
+
+            if not valida_nome(resp_nome):
+                messagebox.showerror("Erro", "Nome do responsável inválido.")
+                return
+
+            if not valida_cpf(resp_cpf):
+                messagebox.showerror("Erro", "CPF do responsável inválido.")
+                return
+
+            if not valida_telefone(resp_telefone):
+                messagebox.showerror("Erro", "Telefone do responsável inválido.")
+                return
+
+            if not self.var_autorizacao.get():
+                messagebox.showwarning(
+                    "Aviso",
+                    "É necessário marcar a autorização do responsável para matricular menores de "
+                    f"{IDADE_MINIMA_SEM_RESPONSAVEL} anos.",
+                )
+                return
+
+            dados_responsavel = {
+                "nome": resp_nome,
+                "cpf": re.sub(r"\D", "", resp_cpf),
+                "telefone": resp_telefone,
+                "parentesco": resp_parentesco,
+            }
+
+        cpf_limpo = re.sub(r"\D", "", cpf)
+        for existente in self.alunos:
+            if existente["cpf"] == cpf_limpo:
+                messagebox.showerror("Erro", "Já existe um aluno cadastrado com este CPF.")
+                return
+
+        aluno = {
+            "nome": nome,
+            "idade": idade_txt,
+            "cpf": cpf_limpo,
+            "nascimento": nascimento,
+            "telefone": telefone,
+            "endereco": endereco,
+            "plano": plano,
+            "pagamento": pagamento,
+            "condicoes_saude": self.coletar_condicoes(),
+            "responsavel": dados_responsavel,
+        }
+        self.alunos.append(aluno)
+        self.atualizar_lista()
+
+        for entry in (
+            self.entry_nome, self.entry_idade, self.entry_cpf, self.entry_nascimento,
+            self.entry_telefone, self.entry_endereco, self.entry_resp_nome,
+            self.entry_resp_cpf, self.entry_resp_telefone, self.entry_resp_parentesco,
+        ):
+            entry.delete(0, tk.END)
+        self.combo_plano.current(0)
+        self.combo_pagamento.current(0)
+        self.var_autorizacao.set(False)
+        self.limpar_condicoes()
+        self.entry_nome.focus()
+
+        self.salvar_dados(mostrar_aviso=False)
+
+    def ver_detalhes(self):
+        selecionado = self.tree.selection()
+        if not selecionado:
+            messagebox.showwarning("Aviso", "Selecione um aluno para ver os detalhes.")
+            return
+
+        indice = int(selecionado[0])
+        aluno = self.alunos[indice]
+        condicoes = ", ".join(aluno["condicoes_saude"]) if aluno["condicoes_saude"] else "Nenhuma informada"
+
+        detalhes = (
+            f"Nome: {aluno['nome']}\n"
+            f"Idade: {aluno['idade']}\n"
+            f"CPF: {formata_cpf(aluno['cpf'])}\n"
+            f"Nascimento: {aluno['nascimento']}\n"
+            f"Telefone: {aluno['telefone']}\n"
+            f"Endereço: {aluno['endereco']}\n"
+            f"Plano: {aluno['plano']}\n"
+            f"Forma de pagamento: {aluno.get('pagamento', '-')}\n"
+            f"Condições de saúde: {condicoes}\n"
+        )
+
+        responsavel = aluno.get("responsavel")
+        if responsavel:
+            detalhes += (
+                f"\n--- Responsável ---\n"
+                f"Nome: {responsavel['nome']}\n"
+                f"CPF: {formata_cpf(responsavel['cpf'])}\n"
+                f"Telefone: {responsavel['telefone']}\n"
+                f"Parentesco: {responsavel['parentesco']}\n"
+            )
+
+        messagebox.showinfo("Detalhes do aluno", detalhes)
+
+    def remover_selecionado(self):
+        selecionado = self.tree.selection()
+        if not selecionado:
+            messagebox.showwarning("Aviso", "Selecione um aluno para remover.")
+            return
+
+        indice = int(selecionado[0])
+        confirmar = messagebox.askyesno(
+            "Confirmar remoção", f"Deseja remover '{self.alunos[indice]['nome']}' da lista?"
+        )
+        if confirmar:
+            del self.alunos[indice]
+            self.atualizar_lista()
+            self.salvar_dados(mostrar_aviso=False)
+
+    def limpar_lista(self):
+        if not self.alunos:
+            return
+        confirmar = messagebox.askyesno(
+            "Confirmar", "Deseja realmente limpar toda a lista de matriculados?"
+        )
+        if confirmar:
+            self.alunos = []
+            self.atualizar_lista()
+            self.salvar_dados(mostrar_aviso=False)
+
+    def buscar_aluno(self, event=None):
+        termo = self.entry_busca.get().strip().lower()
+        self.atualizar_lista(filtro=termo if termo else None)
+
+    def salvar_dados(self, mostrar_aviso=True):
+        try:
+            with open(ARQUIVO_DADOS, "w", encoding="utf-8") as f:
+                json.dump(self.alunos, f, ensure_ascii=False, indent=2)
+            if mostrar_aviso:
+                messagebox.showinfo("Sucesso", "Dados salvos com sucesso!")
+        except Exception as e:
+            if mostrar_aviso:
+                messagebox.showerror("Erro", f"Não foi possível salvar os dados.\n{e}")
+
+    def carregar_dados(self):
+        if os.path.exists(ARQUIVO_DADOS):
+            try:
+                with open(ARQUIVO_DADOS, "r", encoding="utf-8") as f:
+                    self.alunos = json.load(f)
+            except Exception:
+                self.alunos = []
+        self.atualizar_lista()
+
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = AcademiaApp(root)
+    root.mainloop()
+
+    import tkinter as tk
+from tkinter import ttk, messagebox
+import json
+import os
+import re
+from datetime import datetime
+
+ARQUIVO_DADOS = "matriculados.json"
+
+CONDICOES_SAUDE = [
+    "Asma",
+    "Diabetes",
+    "Hipertensão",
+    "Distrofia Muscular",
+    "Problema Cardíaco",
+    "Epilepsia",
+    "Lesão/Cirurgia recente",
+]
+
+FORMAS_PAGAMENTO = ["Dinheiro", "Pix", "Cartão de Débito", "Cartão de Crédito", "Boleto"]
+
+IDADE_MINIMA_SEM_RESPONSAVEL = 14
+
+# ---------- Paleta de cores ----------
+COR_PRETO_ABSOLUTO = "#000000"
+COR_PRETO_HEADER = "#000000"
+COR_BRANCO = "#FFFFFF"
+COR_ENTRADA_BG = "#111111"
+COR_BORDA = "#2A2A2A"
+COR_AGUA_MARINHA = "#1BC4B5"
+COR_AGUA_MARINHA_ESCURO = "#0E7A71"
+FONTE_PADRAO = "Segoe UI"
+
+
+def valida_cpf(cpf):
+    cpf = re.sub(r"\D", "", cpf)
+    if len(cpf) != 11:
+        return False
+    if cpf == cpf[0] * 11:
+        return False
+
+    soma = sum(int(cpf[i]) * (10 - i) for i in range(9))
+    resto = (soma * 10) % 11
+    digito1 = 0 if resto == 10 else resto
+    if digito1 != int(cpf[9]):
+        return False
+
+    soma = sum(int(cpf[i]) * (11 - i) for i in range(10))
+    resto = (soma * 10) % 11
+    digito2 = 0 if resto == 10 else resto
+    if digito2 != int(cpf[10]):
+        return False
+
+    return True
+
+
+def formata_cpf(cpf):
+    cpf = re.sub(r"\D", "", cpf)
+    return f"{cpf[0:3]}.{cpf[3:6]}.{cpf[6:9]}-{cpf[9:11]}"
+
+
+def valida_telefone(tel):
+    tel = re.sub(r"\D", "", tel)
+    return len(tel) in (10, 11)
+
+
+def valida_data_nascimento(data_str):
+    try:
+        data = datetime.strptime(data_str.strip(), "%d/%m/%Y")
+    except ValueError:
+        return False, None
+
+    hoje = datetime.now()
+    if data > hoje:
+        return False, None
+
+    idade = hoje.year - data.year - ((hoje.month, hoje.day) < (data.month, data.day))
+    if idade < 0 or idade > 120:
+        return False, None
+
+    return True, idade
+
+
+def valida_endereco(endereco):
+    return len(endereco.strip()) >= 5
+
+
+def valida_nome(nome):
+    nome = nome.strip()
+    if len(re.sub(r"\s", "", nome)) <= 2:
+        return False
+    if not re.fullmatch(r"[A-Za-zÀ-ÖØ-öø-ÿ' ]+", nome):
+        return False
+    partes = nome.split()
+    if any(len(parte) < 2 for parte in partes):
+        return False
+    return True
+
+
+class AcademiaApp:
+
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Mybax Combat - Sistema de Matrícula")
+        self.root.geometry("640x1170")
+        self.root.config(bg=COR_PRETO_ABSOLUTO)
+        self.root.resizable(False, False)
+
+        self.alunos = []
+        self.check_vars = {}
+
+        self._configurar_estilos()
+
+        # ---------- Cabeçalho ----------
+        header = tk.Frame(root, bg=COR_PRETO_HEADER, height=130)
+        header.pack(fill="x", side="top")
+        header.pack_propagate(False)
+
+        faixa_topo = tk.Frame(header, bg=COR_AGUA_MARINHA, height=4)
+        faixa_topo.pack(fill="x", side="top")
+
+        tk.Label(
+            header,
+            text="M Y B A X   C O M B A T",
+            font=(FONTE_PADRAO, 26, "bold"),
+            bg=COR_PRETO_HEADER,
+            fg=COR_AGUA_MARINHA,
+        ).pack(pady=(24, 0))
+        tk.Label(
+            header,
+            text="SISTEMA DE MATRÍCULA",
+            font=(FONTE_PADRAO, 10, "bold"),
+            bg=COR_PRETO_HEADER,
+            fg=COR_BRANCO,
+        ).pack()
+
+        faixa_base = tk.Frame(header, bg=COR_AGUA_MARINHA, height=3)
+        faixa_base.pack(fill="x", side="bottom")
+
+        # ---------- Área rolável ----------
+        canvas = tk.Canvas(root, bg=COR_PRETO_ABSOLUTO, highlightthickness=0)
+        scrollbar_geral = ttk.Scrollbar(root, orient="vertical", command=canvas.yview)
+        self.frame_scroll = tk.Frame(canvas, bg=COR_PRETO_ABSOLUTO)
+
+        self.frame_scroll.bind(
+            "<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        canvas.create_window((0, 0), window=self.frame_scroll, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar_geral.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar_geral.pack(side="right", fill="y")
+
+        root_frame = self.frame_scroll
+
+        def cartao(titulo):
+            card = tk.Frame(root_frame, bg=COR_BRANCO, highlightthickness=2,
+                             highlightbackground=COR_AGUA_MARINHA)
+            card.pack(pady=(20, 0), padx=25, fill="x")
+            tk.Label(
+                card, text=titulo, font=(FONTE_PADRAO, 14, "bold"),
+                bg=COR_BRANCO, fg=COR_PRETO_ABSOLUTO,
+            ).pack(anchor="w", padx=18, pady=(15, 5))
+            return card
+
+        def campo(pai, label_texto):
+            tk.Label(
+                pai, text=label_texto, font=(FONTE_PADRAO, 9, "bold"),
+                bg=COR_BRANCO, fg=COR_AGUA_MARINHA_ESCURO, anchor="w",
+            ).pack(fill="x", pady=(8, 2))
+            entry = tk.Entry(
+                pai, font=(FONTE_PADRAO, 11), bg=COR_ENTRADA_BG, fg=COR_BRANCO,
+                relief="flat", insertbackground=COR_BRANCO,
+                highlightthickness=1, highlightbackground=COR_BORDA,
+                highlightcolor=COR_AGUA_MARINHA,
+            )
+            entry.pack(fill="x", ipady=6)
+            return entry
+
+        # ---------- Cartão do formulário ----------
+        card_form = cartao("Dados do Aluno")
+        self.frame_form = tk.Frame(card_form, bg=COR_BRANCO)
+        self.frame_form.pack(padx=18, pady=(0, 15), fill="x")
+
+        self.entry_nome = campo(self.frame_form, "NOME DO ALUNO")
+        self.entry_idade = campo(self.frame_form, "IDADE")
+        self.entry_cpf = campo(self.frame_form, "CPF")
+        self.entry_nascimento = campo(self.frame_form, "DATA DE NASCIMENTO (dd/mm/aaaa)")
+        self.entry_telefone = campo(self.frame_form, "TELEFONE (DDD + número)")
+        self.entry_endereco = campo(self.frame_form, "ENDEREÇO COMPLETO")
+
+        tk.Label(
+            self.frame_form, text="PLANO", font=(FONTE_PADRAO, 9, "bold"),
+            bg=COR_BRANCO, fg=COR_AGUA_MARINHA_ESCURO, anchor="w",
+        ).pack(fill="x", pady=(8, 2))
+        self.combo_plano = ttk.Combobox(
+            self.frame_form, font=(FONTE_PADRAO, 11), state="readonly",
+            style="Moderno.TCombobox",
+            values=["Mensal", "Trimestral", "Semestral", "Anual"],
+        )
+        self.combo_plano.current(0)
+        self.combo_plano.pack(fill="x", ipady=4)
+
+        tk.Label(
+            self.frame_form, text="FORMA DE PAGAMENTO", font=(FONTE_PADRAO, 9, "bold"),
+            bg=COR_BRANCO, fg=COR_AGUA_MARINHA_ESCURO, anchor="w",
+        ).pack(fill="x", pady=(8, 2))
+        self.combo_pagamento = ttk.Combobox(
+            self.frame_form, font=(FONTE_PADRAO, 11), state="readonly",
+            style="Moderno.TCombobox", values=FORMAS_PAGAMENTO,
+        )
+        self.combo_pagamento.current(0)
+        self.combo_pagamento.pack(fill="x", ipady=4, pady=(0, 15))
+
+        # ---------- Cartão do responsável ----------
+        card_resp = cartao("Dados do Responsável (obrigatório para menores de 14 anos)")
+        self.frame_resp = tk.Frame(card_resp, bg=COR_BRANCO)
+        self.frame_resp.pack(padx=18, pady=(0, 10), fill="x")
+
+        self.entry_resp_nome = campo(self.frame_resp, "NOME DO RESPONSÁVEL")
+        self.entry_resp_cpf = campo(self.frame_resp, "CPF DO RESPONSÁVEL")
+        self.entry_resp_telefone = campo(self.frame_resp, "TELEFONE DO RESPONSÁVEL")
+        self.entry_resp_parentesco = campo(self.frame_resp, "GRAU DE PARENTESCO")
+
+        self.var_autorizacao = tk.BooleanVar()
+        tk.Checkbutton(
+            card_resp,
+            text="Declaro ser o responsável legal e autorizo a matrícula do menor.",
+            variable=self.var_autorizacao,
+            bg=COR_BRANCO, fg=COR_PRETO_ABSOLUTO, font=(FONTE_PADRAO, 10, "bold"),
+            selectcolor=COR_ENTRADA_BG, wraplength=520, justify="left",
+            anchor="w",
+        ).pack(fill="x", padx=18, pady=(0, 15))
+
+        # ---------- Cartão de saúde ----------
+        card_saude = cartao("Condições de Saúde")
+        self.frame_saude = tk.Frame(card_saude, bg=COR_BRANCO)
+        self.frame_saude.pack(padx=18, pady=(0, 15), fill="x")
+
+        for condicao in CONDICOES_SAUDE:
+            var = tk.BooleanVar()
+            tk.Checkbutton(
+                self.frame_saude, text=condicao, variable=var,
+                bg=COR_BRANCO, fg=COR_PRETO_ABSOLUTO, font=(FONTE_PADRAO, 10),
+                activebackground=COR_BRANCO, selectcolor=COR_ENTRADA_BG, anchor="w",
+            ).pack(fill="x", anchor="w", pady=2)
+            self.check_vars[condicao] = var
+
+        frame_outra = tk.Frame(self.frame_saude, bg=COR_BRANCO)
+        frame_outra.pack(fill="x", pady=(6, 0))
+        self.var_outra = tk.BooleanVar()
+        tk.Checkbutton(
+            frame_outra, text="Outra:", variable=self.var_outra,
+            bg=COR_BRANCO, fg=COR_PRETO_ABSOLUTO, font=(FONTE_PADRAO, 10),
+            selectcolor=COR_ENTRADA_BG,
+        ).pack(side=tk.LEFT)
+        self.entry_outra_condicao = tk.Entry(
+            frame_outra, font=(FONTE_PADRAO, 10), bg=COR_ENTRADA_BG, fg=COR_BRANCO,
+            insertbackground=COR_BRANCO, relief="flat",
+        )
+        self.entry_outra_condicao.pack(side=tk.LEFT, padx=8, ipady=3, fill="x", expand=True)
+
+        # ---------- Botões ----------
+        frame_botoes = tk.Frame(root_frame, bg=COR_PRETO_ABSOLUTO)
+        frame_botoes.pack(pady=(20, 15), padx=25, fill="x")
+
+        def botao(pai, texto, cor_fundo, cor_texto, comando):
+            return tk.Button(
+                pai, text=texto, font=(FONTE_PADRAO, 10, "bold"),
+                bg=cor_fundo, fg=cor_texto, relief="flat",
+                activebackground=COR_AGUA_MARINHA_ESCURO, activeforeground=COR_BRANCO,
+                cursor="hand2", command=comando, padx=10, pady=10,
+                highlightthickness=1, highlightbackground=COR_AGUA_MARINHA,
+            )
+
+        botao(frame_botoes, "MATRICULAR", COR_AGUA_MARINHA, COR_PRETO_ABSOLUTO, self.matricular).grid(
+            row=0, column=0, padx=4, pady=4, sticky="ew"
+        )
+        botao(frame_botoes, "VER DETALHES", COR_ENTRADA_BG, COR_BRANCO, self.ver_detalhes).grid(
+            row=0, column=1, padx=4, pady=4, sticky="ew"
+        )
+        botao(frame_botoes, "REMOVER", COR_ENTRADA_BG, COR_AGUA_MARINHA, self.remover_selecionado).grid(
+            row=1, column=0, padx=4, pady=4, sticky="ew"
+        )
+        botao(frame_botoes, "LIMPAR LISTA", "#8C2F2F", COR_BRANCO, self.limpar_lista).grid(
+            row=1, column=1, padx=4, pady=4, sticky="ew"
+        )
+        botao(frame_botoes, "SALVAR DADOS", COR_AGUA_MARINHA_ESCURO, COR_BRANCO, self.salvar_dados).grid(
+            row=2, column=0, columnspan=2, padx=4, pady=4, sticky="ew"
+        )
+
+        frame_botoes.columnconfigure(0, weight=1)
+        frame_botoes.columnconfigure(1, weight=1)
+
+        # ---------- Busca ----------
+        frame_busca = tk.Frame(root_frame, bg=COR_PRETO_ABSOLUTO)
+        frame_busca.pack(pady=(0, 10), padx=25, fill="x")
+        tk.Label(
+            frame_busca, text="BUSCAR", font=(FONTE_PADRAO, 9, "bold"),
+            bg=COR_PRETO_ABSOLUTO, fg=COR_AGUA_MARINHA,
+        ).pack(anchor="w")
+        self.entry_busca = tk.Entry(
+            frame_busca, font=(FONTE_PADRAO, 10), bg=COR_ENTRADA_BG, fg=COR_BRANCO,
+            insertbackground=COR_BRANCO, relief="flat",
+            highlightthickness=1, highlightbackground=COR_BORDA,
+            highlightcolor=COR_AGUA_MARINHA,
+        )
+        self.entry_busca.pack(fill="x", ipady=6)
+        self.entry_busca.bind("<KeyRelease>", self.buscar_aluno)
+
+        # ---------- Tabela (Treeview) ----------
+        frame_lista = tk.Frame(root_frame, bg=COR_PRETO_ABSOLUTO)
+        frame_lista.pack(pady=10, padx=25, fill="both", expand=True)
+
+        colunas = ("nome", "cpf", "telefone", "plano", "pagamento")
+        self.tree = ttk.Treeview(
+            frame_lista, columns=colunas, show="headings", height=10, style="Moderno.Treeview"
+        )
+        self.tree.heading("nome", text="Nome")
+        self.tree.heading("cpf", text="CPF")
+        self.tree.heading("telefone", text="Telefone")
+        self.tree.heading("plano", text="Plano")
+        self.tree.heading("pagamento", text="Pagamento")
+        self.tree.column("nome", width=160)
+        self.tree.column("cpf", width=110)
+        self.tree.column("telefone", width=100)
+        self.tree.column("plano", width=80)
+        self.tree.column("pagamento", width=100)
+
+        scroll_tree = ttk.Scrollbar(frame_lista, orient="vertical", command=self.tree.yview)
+        self.tree.configure(yscrollcommand=scroll_tree.set)
+        self.tree.pack(side=tk.LEFT, fill="both", expand=True)
+        scroll_tree.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self.label_contador = tk.Label(
+            root_frame, text="Total de matriculados: 0", font=(FONTE_PADRAO, 10, "bold"),
+            bg=COR_PRETO_ABSOLUTO, fg=COR_AGUA_MARINHA,
+        )
+        self.label_contador.pack(pady=(0, 20))
+
+        self.carregar_dados()
+
+    def _configurar_estilos(self):
+        style = ttk.Style()
+        style.theme_use("clam")
+
+        style.configure(
+            "Moderno.TCombobox", fieldbackground=COR_ENTRADA_BG, background=COR_ENTRADA_BG,
+            foreground=COR_BRANCO, arrowcolor=COR_AGUA_MARINHA, relief="flat",
+        )
+
+        style.configure(
+            "Moderno.Treeview", background=COR_ENTRADA_BG, fieldbackground=COR_ENTRADA_BG,
+            foreground=COR_BRANCO, rowheight=28, font=(FONTE_PADRAO, 10), borderwidth=0,
+        )
+        style.configure(
+            "Moderno.Treeview.Heading", background=COR_AGUA_MARINHA, foreground=COR_PRETO_ABSOLUTO,
+            font=(FONTE_PADRAO, 10, "bold"), relief="flat",
+        )
+        style.map(
+            "Moderno.Treeview",
+            background=[("selected", COR_AGUA_MARINHA_ESCURO)],
+            foreground=[("selected", COR_BRANCO)],
+        )
+        style.map("Moderno.Treeview.Heading", background=[("active", COR_AGUA_MARINHA_ESCURO)])
+
+    def coletar_condicoes(self):
+        condicoes = [c for c, v in self.check_vars.items() if v.get()]
+        if self.var_outra.get():
+            outra = self.entry_outra_condicao.get().strip()
+            if outra:
+                condicoes.append(f"Outra: {outra}")
+        return condicoes
+
+    def limpar_condicoes(self):
+        for var in self.check_vars.values():
+            var.set(False)
+        self.var_outra.set(False)
+        self.entry_outra_condicao.delete(0, tk.END)
+
+    def atualizar_lista(self, filtro=None):
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+
+        for indice, aluno in enumerate(self.alunos):
+            if filtro and filtro not in aluno["nome"].lower() and filtro not in aluno["cpf"]:
+                continue
+            self.tree.insert(
+                "", tk.END, iid=str(indice),
+                values=(
+                    aluno["nome"], formata_cpf(aluno["cpf"]), aluno["telefone"],
+                    aluno["plano"], aluno.get("pagamento", "-"),
+                ),
+            )
+        self.label_contador.config(text=f"Total de matriculados: {len(self.alunos)}")
+
+    def matricular(self):
+        nome = self.entry_nome.get().strip()
+        idade_txt = self.entry_idade.get().strip()
+        cpf = self.entry_cpf.get().strip()
+        nascimento = self.entry_nascimento.get().strip()
+        telefone = self.entry_telefone.get().strip()
+        endereco = self.entry_endereco.get().strip()
+        plano = self.combo_plano.get().strip()
+        pagamento = self.combo_pagamento.get().strip()
+
+        if not all([nome, idade_txt, cpf, nascimento, telefone, endereco, plano, pagamento]):
+            messagebox.showwarning("Aviso", "Preencha todos os campos antes de matricular.")
+            return
+
+        if not valida_nome(nome):
+            messagebox.showerror(
+                "Erro",
+                "Nome inválido. Digite o nome completo, sem números ou símbolos, "
+                "e cada parte do nome deve ter pelo menos 2 letras.",
+            )
+            return
+
+        if not idade_txt.isdigit():
+            messagebox.showerror("Erro", "A idade deve conter apenas números.")
+            return
+
+        if not valida_cpf(cpf):
+            messagebox.showerror("Erro", "CPF inválido. Verifique os números digitados.")
+            return
+
+        data_valida, idade_calculada = valida_data_nascimento(nascimento)
+        if not data_valida:
+            messagebox.showerror("Erro", "Data de nascimento inválida. Use o formato dd/mm/aaaa.")
+            return
+
+        if not valida_telefone(telefone):
+            messagebox.showerror("Erro", "Telefone inválido. Informe DDD + número (10 ou 11 dígitos).")
+            return
+
+        if not valida_endereco(endereco):
+            messagebox.showerror("Erro", "Endereço muito curto ou inválido.")
+            return
+
+        idade = int(idade_txt)
+        if idade != idade_calculada:
+            confirmar = messagebox.askyesno(
+                "Divergência de idade",
+                f"A idade informada ({idade_txt}) não corresponde à idade calculada "
+                f"pela data de nascimento ({idade_calculada}). Deseja continuar mesmo assim?",
+            )
+            if not confirmar:
+                return
+
+        dados_responsavel = None
+        if idade < IDADE_MINIMA_SEM_RESPONSAVEL:
+            resp_nome = self.entry_resp_nome.get().strip()
+            resp_cpf = self.entry_resp_cpf.get().strip()
+            resp_telefone = self.entry_resp_telefone.get().strip()
+            resp_parentesco = self.entry_resp_parentesco.get().strip()
+
+            if not all([resp_nome, resp_cpf, resp_telefone, resp_parentesco]):
+                messagebox.showwarning(
+                    "Aviso",
+                    f"Alunos com menos de {IDADE_MINIMA_SEM_RESPONSAVEL} anos precisam "
+                    "dos dados completos do responsável.",
+                )
+                return
+
+            if not valida_nome(resp_nome):
+                messagebox.showerror("Erro", "Nome do responsável inválido.")
+                return
+
+            if not valida_cpf(resp_cpf):
+                messagebox.showerror("Erro", "CPF do responsável inválido.")
+                return
+
+            if not valida_telefone(resp_telefone):
+                messagebox.showerror("Erro", "Telefone do responsável inválido.")
+                return
+
+            if not self.var_autorizacao.get():
+                messagebox.showwarning(
+                    "Aviso",
+                    "É necessário marcar a autorização do responsável para matricular menores de "
+                    f"{IDADE_MINIMA_SEM_RESPONSAVEL} anos.",
+                )
+                return
+
+            dados_responsavel = {
+                "nome": resp_nome,
+                "cpf": re.sub(r"\D", "", resp_cpf),
+                "telefone": resp_telefone,
+                "parentesco": resp_parentesco,
+            }
+
+        cpf_limpo = re.sub(r"\D", "", cpf)
+        for existente in self.alunos:
+            if existente["cpf"] == cpf_limpo:
+                messagebox.showerror("Erro", "Já existe um aluno cadastrado com este CPF.")
+                return
+
+        aluno = {
+            "nome": nome,
+            "idade": idade_txt,
+            "cpf": cpf_limpo,
+            "nascimento": nascimento,
+            "telefone": telefone,
+            "endereco": endereco,
+            "plano": plano,
+            "pagamento": pagamento,
+            "condicoes_saude": self.coletar_condicoes(),
+            "responsavel": dados_responsavel,
+        }
+        self.alunos.append(aluno)
+        self.atualizar_lista()
+
+        for entry in (
+            self.entry_nome, self.entry_idade, self.entry_cpf, self.entry_nascimento,
+            self.entry_telefone, self.entry_endereco, self.entry_resp_nome,
+            self.entry_resp_cpf, self.entry_resp_telefone, self.entry_resp_parentesco,
+        ):
+            entry.delete(0, tk.END)
+        self.combo_plano.current(0)
+        self.combo_pagamento.current(0)
+        self.var_autorizacao.set(False)
+        self.limpar_condicoes()
+        self.entry_nome.focus()
+
+        self.salvar_dados(mostrar_aviso=False)
+
+    def ver_detalhes(self):
+        selecionado = self.tree.selection()
+        if not selecionado:
+            messagebox.showwarning("Aviso", "Selecione um aluno para ver os detalhes.")
+            return
+
+        indice = int(selecionado[0])
+        aluno = self.alunos[indice]
+        condicoes = ", ".join(aluno["condicoes_saude"]) if aluno["condicoes_saude"] else "Nenhuma informada"
+
+        detalhes = (
+            f"Nome: {aluno['nome']}\n"
+            f"Idade: {aluno['idade']}\n"
+            f"CPF: {formata_cpf(aluno['cpf'])}\n"
+            f"Nascimento: {aluno['nascimento']}\n"
+            f"Telefone: {aluno['telefone']}\n"
+            f"Endereço: {aluno['endereco']}\n"
+            f"Plano: {aluno['plano']}\n"
+            f"Forma de pagamento: {aluno.get('pagamento', '-')}\n"
+            f"Condições de saúde: {condicoes}\n"
+        )
+
+        responsavel = aluno.get("responsavel")
+        if responsavel:
+            detalhes += (
+                f"\n--- Responsável ---\n"
+                f"Nome: {responsavel['nome']}\n"
+                f"CPF: {formata_cpf(responsavel['cpf'])}\n"
+                f"Telefone: {responsavel['telefone']}\n"
+                f"Parentesco: {responsavel['parentesco']}\n"
+            )
+
+        messagebox.showinfo("Detalhes do aluno", detalhes)
+
+    def remover_selecionado(self):
+        selecionado = self.tree.selection()
+        if not selecionado:
+            messagebox.showwarning("Aviso", "Selecione um aluno para remover.")
+            return
+
+        indice = int(selecionado[0])
+        confirmar = messagebox.askyesno(
+            "Confirmar remoção", f"Deseja remover '{self.alunos[indice]['nome']}' da lista?"
+        )
+        if confirmar:
+            del self.alunos[indice]
+            self.atualizar_lista()
+            self.salvar_dados(mostrar_aviso=False)
+
+    def limpar_lista(self):
+        if not self.alunos:
+            return
+        confirmar = messagebox.askyesno(
+            "Confirmar", "Deseja realmente limpar toda a lista de matriculados?"
+        )
+        if confirmar:
+            self.alunos = []
+            self.atualizar_lista()
+            self.salvar_dados(mostrar_aviso=False)
+
+    def buscar_aluno(self, event=None):
+        termo = self.entry_busca.get().strip().lower()
+        self.atualizar_lista(filtro=termo if termo else None)
+
+    def salvar_dados(self, mostrar_aviso=True):
+        try:
+            with open(ARQUIVO_DADOS, "w", encoding="utf-8") as f:
+                json.dump(self.alunos, f, ensure_ascii=False, indent=2)
+            if mostrar_aviso:
+                messagebox.showinfo("Sucesso", "Dados salvos com sucesso!")
+        except Exception as e:
+            if mostrar_aviso:
+                messagebox.showerror("Erro", f"Não foi possível salvar os dados.\n{e}")
+
+    def carregar_dados(self):
+        if os.path.exists(ARQUIVO_DADOS):
+            try:
+                with open(ARQUIVO_DADOS, "r", encoding="utf-8") as f:
+                    self.alunos = json.load(f)
+            except Exception:
+                self.alunos = []
+        self.atualizar_lista()
+
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = AcademiaApp(root)
+    root.mainloop()
+
+    import tkinter as tk
+from tkinter import ttk, messagebox
+import json
+import os
+import re
+from datetime import datetime
+
+ARQUIVO_DADOS = "matriculados.json"
+
+CONDICOES_SAUDE = [
+    "Asma",
+    "Diabetes",
+    "Hipertensão",
+    "Distrofia Muscular",
+    "Problema Cardíaco",
+    "Epilepsia",
+    "Lesão/Cirurgia recente",
+]
+
+FORMAS_PAGAMENTO = ["Dinheiro", "Pix", "Cartão de Débito", "Cartão de Crédito", "Boleto"]
+
+IDADE_MINIMA_SEM_RESPONSAVEL = 14
+
+# ---------- Paleta de cores ----------
+COR_PRETO_ABSOLUTO = "#000000"
+COR_PRETO_HEADER = "#000000"
+COR_BRANCO = "#FFFFFF"
+COR_ENTRADA_BG = "#111111"
+COR_BORDA = "#2A2A2A"
+COR_AGUA_MARINHA = "#1BC4B5"
+COR_AGUA_MARINHA_ESCURO = "#0E7A71"
+FONTE_PADRAO = "Segoe UI"
+
+REGEX_NOME = re.compile(r"^[A-Za-zÀ-ÖØ-öø-ÿ' ]*$")
+REGEX_ENDERECO = re.compile(r"^[A-Za-zÀ-ÖØ-öø-ÿ0-9º°,.\-/ ]*$")
+
+
+# ---------- Funções de validação de conteúdo ----------
+def valida_cpf(cpf):
+    cpf = re.sub(r"\D", "", cpf)
+    if len(cpf) != 11:
+        return False
+    if cpf == cpf[0] * 11:
+        return False
+
+    soma = sum(int(cpf[i]) * (10 - i) for i in range(9))
+    resto = (soma * 10) % 11
+    digito1 = 0 if resto == 10 else resto
+    if digito1 != int(cpf[9]):
+        return False
+
+    soma = sum(int(cpf[i]) * (11 - i) for i in range(10))
+    resto = (soma * 10) % 11
+    digito2 = 0 if resto == 10 else resto
+    if digito2 != int(cpf[10]):
+        return False
+
+    return True
+
+
+def formata_cpf(cpf):
+    cpf = re.sub(r"\D", "", cpf)
+    return f"{cpf[0:3]}.{cpf[3:6]}.{cpf[6:9]}-{cpf[9:11]}"
+
+
+def valida_telefone(tel):
+    tel = re.sub(r"\D", "", tel)
+    return len(tel) in (10, 11)
+
+
+def valida_data_nascimento(data_str):
+    data_str = data_str.strip()
+    if not re.fullmatch(r"\d{2}/\d{2}/\d{4}", data_str):
+        return False, None
+    try:
+        data = datetime.strptime(data_str, "%d/%m/%Y")
+    except ValueError:
+        return False, None
+
+    hoje = datetime.now()
+    if data > hoje:
+        return False, None
+
+    idade = hoje.year - data.year - ((hoje.month, hoje.day) < (data.month, data.day))
+    if idade < 0 or idade > 120:
+        return False, None
+
+    return True, idade
+
+
+def valida_endereco(endereco):
+    endereco = endereco.strip()
+    if len(endereco) < 5:
+        return False
+    if not REGEX_ENDERECO.fullmatch(endereco):
+        return False
+    if not any(c.isalpha() for c in endereco):
+        return False
+    return True
+
+
+def valida_nome(nome):
+    nome = nome.strip()
+    if len(re.sub(r"\s", "", nome)) <= 2:
+        return False
+    if not REGEX_NOME.fullmatch(nome):
+        return False
+    partes = nome.split()
+    if any(len(parte) < 2 for parte in partes):
+        return False
+    return True
+
+
+class AcademiaApp:
+
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Mybax Combat - Sistema de Matrícula")
+        self.root.geometry("640x1170")
+        self.root.config(bg=COR_PRETO_ABSOLUTO)
+        self.root.resizable(False, False)
+
+        self.alunos = []
+        self.check_vars = {}
+
+        # ---------- Registro dos validadores de teclas ----------
+        self.vcmd_nome = (root.register(self._permite_nome), "%P")
+        self.vcmd_numero = (root.register(self._permite_numero), "%P")
+        self.vcmd_data = (root.register(self._permite_data), "%P")
+        self.vcmd_endereco = (root.register(self._permite_endereco), "%P")
+
+        self._configurar_estilos()
+
+        # ---------- Cabeçalho ----------
+        header = tk.Frame(root, bg=COR_PRETO_HEADER, height=130)
+        header.pack(fill="x", side="top")
+        header.pack_propagate(False)
+
+        tk.Frame(header, bg=COR_AGUA_MARINHA, height=4).pack(fill="x", side="top")
+
+        tk.Label(
+            header,
+            text="M Y B A X   C O M B A T",
+            font=(FONTE_PADRAO, 26, "bold"),
+            bg=COR_PRETO_HEADER,
+            fg=COR_AGUA_MARINHA,
+        ).pack(pady=(24, 0))
+        tk.Label(
+            header,
+            text="SISTEMA DE MATRÍCULA",
+            font=(FONTE_PADRAO, 10, "bold"),
+            bg=COR_PRETO_HEADER,
+            fg=COR_BRANCO,
+        ).pack()
+
+        tk.Frame(header, bg=COR_AGUA_MARINHA, height=3).pack(fill="x", side="bottom")
+
+        # ---------- Área rolável ----------
+        canvas = tk.Canvas(root, bg=COR_PRETO_ABSOLUTO, highlightthickness=0)
+        scrollbar_geral = ttk.Scrollbar(root, orient="vertical", command=canvas.yview)
+        self.frame_scroll = tk.Frame(canvas, bg=COR_PRETO_ABSOLUTO)
+
+        self.frame_scroll.bind(
+            "<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        canvas.create_window((0, 0), window=self.frame_scroll, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar_geral.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar_geral.pack(side="right", fill="y")
+
+        root_frame = self.frame_scroll
+
+        def cartao(titulo):
+            card = tk.Frame(root_frame, bg=COR_BRANCO, highlightthickness=2,
+                             highlightbackground=COR_AGUA_MARINHA)
+            card.pack(pady=(20, 0), padx=25, fill="x")
+            tk.Label(
+                card, text=titulo, font=(FONTE_PADRAO, 14, "bold"),
+                bg=COR_BRANCO, fg=COR_PRETO_ABSOLUTO,
+            ).pack(anchor="w", padx=18, pady=(15, 5))
+            return card
+
+        def campo(pai, label_texto, vcmd=None, max_len=None):
+            tk.Label(
+                pai, text=label_texto, font=(FONTE_PADRAO, 9, "bold"),
+                bg=COR_BRANCO, fg=COR_AGUA_MARINHA_ESCURO, anchor="w",
+            ).pack(fill="x", pady=(8, 2))
+            entry = tk.Entry(
+                pai, font=(FONTE_PADRAO, 11), bg=COR_ENTRADA_BG, fg=COR_BRANCO,
+                relief="flat", insertbackground=COR_BRANCO,
+                highlightthickness=1, highlightbackground=COR_BORDA,
+                highlightcolor=COR_AGUA_MARINHA,
+            )
+            if vcmd:
+                entry.config(validate="key", validatecommand=vcmd)
+            entry.pack(fill="x", ipady=6)
+            return entry
+
+        # ---------- Cartão do formulário ----------
+        card_form = cartao("Dados do Aluno")
+        self.frame_form = tk.Frame(card_form, bg=COR_BRANCO)
+        self.frame_form.pack(padx=18, pady=(0, 15), fill="x")
+
+        self.entry_nome = campo(self.frame_form, "NOME DO ALUNO", self.vcmd_nome)
+        self.entry_idade = campo(self.frame_form, "IDADE", self.vcmd_numero)
+        self.entry_cpf = campo(self.frame_form, "CPF", self.vcmd_numero)
+        self.entry_nascimento = campo(self.frame_form, "DATA DE NASCIMENTO (dd/mm/aaaa)", self.vcmd_data)
+        self.entry_telefone = campo(self.frame_form, "TELEFONE (DDD + número)", self.vcmd_numero)
+        self.entry_endereco = campo(self.frame_form, "ENDEREÇO COMPLETO", self.vcmd_endereco)
+
+        tk.Label(
+            self.frame_form, text="PLANO", font=(FONTE_PADRAO, 9, "bold"),
+            bg=COR_BRANCO, fg=COR_AGUA_MARINHA_ESCURO, anchor="w",
+        ).pack(fill="x", pady=(8, 2))
+        self.combo_plano = ttk.Combobox(
+            self.frame_form, font=(FONTE_PADRAO, 11), state="readonly",
+            style="Moderno.TCombobox",
+            values=["Mensal", "Trimestral", "Semestral", "Anual"],
+        )
+        self.combo_plano.current(0)
+        self.combo_plano.pack(fill="x", ipady=4)
+
+        tk.Label(
+            self.frame_form, text="FORMA DE PAGAMENTO", font=(FONTE_PADRAO, 9, "bold"),
+            bg=COR_BRANCO, fg=COR_AGUA_MARINHA_ESCURO, anchor="w",
+        ).pack(fill="x", pady=(8, 2))
+        self.combo_pagamento = ttk.Combobox(
+            self.frame_form, font=(FONTE_PADRAO, 11), state="readonly",
+            style="Moderno.TCombobox", values=FORMAS_PAGAMENTO,
+        )
+        self.combo_pagamento.current(0)
+        self.combo_pagamento.pack(fill="x", ipady=4, pady=(0, 15))
+
+        # ---------- Cartão do responsável ----------
+        card_resp = cartao("Dados do Responsável (obrigatório para menores de 14 anos)")
+        self.frame_resp = tk.Frame(card_resp, bg=COR_BRANCO)
+        self.frame_resp.pack(padx=18, pady=(0, 10), fill="x")
+
+        self.entry_resp_nome = campo(self.frame_resp, "NOME DO RESPONSÁVEL", self.vcmd_nome)
+        self.entry_resp_cpf = campo(self.frame_resp, "CPF DO RESPONSÁVEL", self.vcmd_numero)
+        self.entry_resp_telefone = campo(self.frame_resp, "TELEFONE DO RESPONSÁVEL", self.vcmd_numero)
+        self.entry_resp_parentesco = campo(self.frame_resp, "GRAU DE PARENTESCO", self.vcmd_nome)
+
+        self.var_autorizacao = tk.BooleanVar()
+        tk.Checkbutton(
+            card_resp,
+            text="Declaro ser o responsável legal e autorizo a matrícula do menor.",
+            variable=self.var_autorizacao,
+            bg=COR_BRANCO, fg=COR_PRETO_ABSOLUTO, font=(FONTE_PADRAO, 10, "bold"),
+            selectcolor=COR_ENTRADA_BG, wraplength=520, justify="left",
+            anchor="w",
+        ).pack(fill="x", padx=18, pady=(0, 15))
+
+        # ---------- Cartão de saúde ----------
+        card_saude = cartao("Condições de Saúde")
+        self.frame_saude = tk.Frame(card_saude, bg=COR_BRANCO)
+        self.frame_saude.pack(padx=18, pady=(0, 15), fill="x")
+
+        for condicao in CONDICOES_SAUDE:
+            var = tk.BooleanVar()
+            tk.Checkbutton(
+                self.frame_saude, text=condicao, variable=var,
+                bg=COR_BRANCO, fg=COR_PRETO_ABSOLUTO, font=(FONTE_PADRAO, 10),
+                activebackground=COR_BRANCO, selectcolor=COR_ENTRADA_BG, anchor="w",
+            ).pack(fill="x", anchor="w", pady=2)
+            self.check_vars[condicao] = var
+
+        frame_outra = tk.Frame(self.frame_saude, bg=COR_BRANCO)
+        frame_outra.pack(fill="x", pady=(6, 0))
+        self.var_outra = tk.BooleanVar()
+        tk.Checkbutton(
+            frame_outra, text="Outra:", variable=self.var_outra,
+            bg=COR_BRANCO, fg=COR_PRETO_ABSOLUTO, font=(FONTE_PADRAO, 10),
+            selectcolor=COR_ENTRADA_BG,
+        ).pack(side=tk.LEFT)
+        self.entry_outra_condicao = tk.Entry(
+            frame_outra, font=(FONTE_PADRAO, 10), bg=COR_ENTRADA_BG, fg=COR_BRANCO,
+            insertbackground=COR_BRANCO, relief="flat",
+        )
+        self.entry_outra_condicao.pack(side=tk.LEFT, padx=8, ipady=3, fill="x", expand=True)
+
+        # ---------- Botões ----------
+        frame_botoes = tk.Frame(root_frame, bg=COR_PRETO_ABSOLUTO)
+        frame_botoes.pack(pady=(20, 15), padx=25, fill="x")
+
+        def botao(pai, texto, cor_fundo, cor_texto, comando):
+            return tk.Button(
+                pai, text=texto, font=(FONTE_PADRAO, 10, "bold"),
+                bg=cor_fundo, fg=cor_texto, relief="flat",
+                activebackground=COR_AGUA_MARINHA_ESCURO, activeforeground=COR_BRANCO,
+                cursor="hand2", command=comando, padx=10, pady=10,
+                highlightthickness=1, highlightbackground=COR_AGUA_MARINHA,
+            )
+
+        botao(frame_botoes, "MATRICULAR", COR_AGUA_MARINHA, COR_PRETO_ABSOLUTO, self.matricular).grid(
+            row=0, column=0, padx=4, pady=4, sticky="ew"
+        )
+        botao(frame_botoes, "VER DETALHES", COR_ENTRADA_BG, COR_BRANCO, self.ver_detalhes).grid(
+            row=0, column=1, padx=4, pady=4, sticky="ew"
+        )
+        botao(frame_botoes, "REMOVER", COR_ENTRADA_BG, COR_AGUA_MARINHA, self.remover_selecionado).grid(
+            row=1, column=0, padx=4, pady=4, sticky="ew"
+        )
+        botao(frame_botoes, "LIMPAR LISTA", "#8C2F2F", COR_BRANCO, self.limpar_lista).grid(
+            row=1, column=1, padx=4, pady=4, sticky="ew"
+        )
+        botao(frame_botoes, "SALVAR DADOS", COR_AGUA_MARINHA_ESCURO, COR_BRANCO, self.salvar_dados).grid(
+            row=2, column=0, columnspan=2, padx=4, pady=4, sticky="ew"
+        )
+
+        frame_botoes.columnconfigure(0, weight=1)
+        frame_botoes.columnconfigure(1, weight=1)
+
+        # ---------- Busca ----------
+        frame_busca = tk.Frame(root_frame, bg=COR_PRETO_ABSOLUTO)
+        frame_busca.pack(pady=(0, 10), padx=25, fill="x")
+        tk.Label(
+            frame_busca, text="BUSCAR", font=(FONTE_PADRAO, 9, "bold"),
+            bg=COR_PRETO_ABSOLUTO, fg=COR_AGUA_MARINHA,
+        ).pack(anchor="w")
+        self.entry_busca = tk.Entry(
+            frame_busca, font=(FONTE_PADRAO, 10), bg=COR_ENTRADA_BG, fg=COR_BRANCO,
+            insertbackground=COR_BRANCO, relief="flat",
+            highlightthickness=1, highlightbackground=COR_BORDA,
+            highlightcolor=COR_AGUA_MARINHA,
+        )
+        self.entry_busca.pack(fill="x", ipady=6)
+        self.entry_busca.bind("<KeyRelease>", self.buscar_aluno)
+
+        # ---------- Tabela (Treeview) ----------
+        frame_lista = tk.Frame(root_frame, bg=COR_PRETO_ABSOLUTO)
+        frame_lista.pack(pady=10, padx=25, fill="both", expand=True)
+
+        colunas = ("nome", "cpf", "telefone", "plano", "pagamento")
+        self.tree = ttk.Treeview(
+            frame_lista, columns=colunas, show="headings", height=10, style="Moderno.Treeview"
+        )
+        self.tree.heading("nome", text="Nome")
+        self.tree.heading("cpf", text="CPF")
+        self.tree.heading("telefone", text="Telefone")
+        self.tree.heading("plano", text="Plano")
+        self.tree.heading("pagamento", text="Pagamento")
+        self.tree.column("nome", width=160)
+        self.tree.column("cpf", width=110)
+        self.tree.column("telefone", width=100)
+        self.tree.column("plano", width=80)
+        self.tree.column("pagamento", width=100)
+
+        scroll_tree = ttk.Scrollbar(frame_lista, orient="vertical", command=self.tree.yview)
+        self.tree.configure(yscrollcommand=scroll_tree.set)
+        self.tree.pack(side=tk.LEFT, fill="both", expand=True)
+        scroll_tree.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self.label_contador = tk.Label(
+            root_frame, text="Total de matriculados: 0", font=(FONTE_PADRAO, 10, "bold"),
+            bg=COR_PRETO_ABSOLUTO, fg=COR_AGUA_MARINHA,
+        )
+        self.label_contador.pack(pady=(0, 20))
+
+        self.carregar_dados()
+
+    # ---------- Validadores de teclas (bloqueiam a digitação errada) ----------
+    def _permite_nome(self, texto_novo):
+        return REGEX_NOME.fullmatch(texto_novo) is not None
+
+    def _permite_numero(self, texto_novo):
+        return texto_novo == "" or (texto_novo.isdigit() and len(texto_novo) <= 14)
+
+    def _permite_data(self, texto_novo):
+        return re.fullmatch(r"[\d/]{0,10}", texto_novo) is not None
+
+    def _permite_endereco(self, texto_novo):
+        return REGEX_ENDERECO.fullmatch(texto_novo) is not None
+
+    def _configurar_estilos(self):
+        style = ttk.Style()
+        style.theme_use("clam")
+
+        style.configure(
+            "Moderno.TCombobox", fieldbackground=COR_ENTRADA_BG, background=COR_ENTRADA_BG,
+            foreground=COR_BRANCO, arrowcolor=COR_AGUA_MARINHA, relief="flat",
+        )
+
+        style.configure(
+            "Moderno.Treeview", background=COR_ENTRADA_BG, fieldbackground=COR_ENTRADA_BG,
+            foreground=COR_BRANCO, rowheight=28, font=(FONTE_PADRAO, 10), borderwidth=0,
+        )
+        style.configure(
+            "Moderno.Treeview.Heading", background=COR_AGUA_MARINHA, foreground=COR_PRETO_ABSOLUTO,
+            font=(FONTE_PADRAO, 10, "bold"), relief="flat",
+        )
+        style.map(
+            "Moderno.Treeview",
+            background=[("selected", COR_AGUA_MARINHA_ESCURO)],
+            foreground=[("selected", COR_BRANCO)],
+        )
+        style.map("Moderno.Treeview.Heading", background=[("active", COR_AGUA_MARINHA_ESCURO)])
+
+    def coletar_condicoes(self):
+        condicoes = [c for c, v in self.check_vars.items() if v.get()]
+        if self.var_outra.get():
+            outra = self.entry_outra_condicao.get().strip()
+            if outra:
+                condicoes.append(f"Outra: {outra}")
+        return condicoes
+
+    def limpar_condicoes(self):
+        for var in self.check_vars.values():
+            var.set(False)
+        self.var_outra.set(False)
+        self.entry_outra_condicao.delete(0, tk.END)
+
+    def atualizar_lista(self, filtro=None):
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+
+        for indice, aluno in enumerate(self.alunos):
+            if filtro and filtro not in aluno["nome"].lower() and filtro not in aluno["cpf"]:
+                continue
+            self.tree.insert(
+                "", tk.END, iid=str(indice),
+                values=(
+                    aluno["nome"], formata_cpf(aluno["cpf"]), aluno["telefone"],
+                    aluno["plano"], aluno.get("pagamento", "-"),
+                ),
+            )
+        self.label_contador.config(text=f"Total de matriculados: {len(self.alunos)}")
+
+    def matricular(self):
+        nome = self.entry_nome.get().strip()
+        idade_txt = self.entry_idade.get().strip()
+        cpf = self.entry_cpf.get().strip()
+        nascimento = self.entry_nascimento.get().strip()
+        telefone = self.entry_telefone.get().strip()
+        endereco = self.entry_endereco.get().strip()
+        plano = self.combo_plano.get().strip()
+        pagamento = self.combo_pagamento.get().strip()
+
+        if not all([nome, idade_txt, cpf, nascimento, telefone, endereco, plano, pagamento]):
+            messagebox.showwarning("Aviso", "Preencha todos os campos antes de matricular.")
+            return
+
+        erros = []
+
+        if not valida_nome(nome):
+            erros.append(
+                "- Nome: use apenas letras e espaços, com nome e sobrenome "
+                "(mínimo 2 letras por palavra)."
+            )
+
+        if not idade_txt.isdigit() or not (0 < int(idade_txt) <= 120):
+            erros.append("- Idade: deve conter apenas números, entre 1 e 120.")
+
+        if not valida_cpf(cpf):
+            erros.append("- CPF: deve conter 11 números válidos (dígitos verificadores incorretos ou repetidos).")
+
+        data_valida, idade_calculada = valida_data_nascimento(nascimento)
+        if not data_valida:
+            erros.append("- Data de nascimento: formato inválido. Use dd/mm/aaaa com uma data real.")
+
+        if not valida_telefone(telefone):
+            erros.append("- Telefone: deve conter apenas números, com DDD (10 ou 11 dígitos).")
+
+        if not valida_endereco(endereco):
+            erros.append("- Endereço: muito curto ou com caracteres não permitidos.")
+
+        if erros:
+            messagebox.showerror(
+                "Matrícula não realizada",
+                "Corrija os campos abaixo antes de continuar:\n\n" + "\n".join(erros),
+            )
+            return
+
+        idade = int(idade_txt)
+        if idade != idade_calculada:
+            confirmar = messagebox.askyesno(
+                "Divergência de idade",
+                f"A idade informada ({idade_txt}) não corresponde à idade calculada "
+                f"pela data de nascimento ({idade_calculada}). Deseja continuar mesmo assim?",
+            )
+            if not confirmar:
+                return
+
+        dados_responsavel = None
+        if idade < IDADE_MINIMA_SEM_RESPONSAVEL:
+            resp_nome = self.entry_resp_nome.get().strip()
+            resp_cpf = self.entry_resp_cpf.get().strip()
+            resp_telefone = self.entry_resp_telefone.get().strip()
+            resp_parentesco = self.entry_resp_parentesco.get().strip()
+
+            if not all([resp_nome, resp_cpf, resp_telefone, resp_parentesco]):
+                messagebox.showwarning(
+                    "Aviso",
+                    f"Alunos com menos de {IDADE_MINIMA_SEM_RESPONSAVEL} anos precisam "
+                    "dos dados completos do responsável.",
+                )
+                return
+
+            erros_resp = []
+            if not valida_nome(resp_nome):
+                erros_resp.append("- Nome do responsável inválido (apenas letras e espaços).")
+            if not valida_cpf(resp_cpf):
+                erros_resp.append("- CPF do responsável inválido.")
+            if not valida_telefone(resp_telefone):
+                erros_resp.append("- Telefone do responsável inválido.")
+
+            if erros_resp:
+                messagebox.showerror(
+                    "Matrícula não realizada",
+                    "Corrija os dados do responsável:\n\n" + "\n".join(erros_resp),
+                )
+                return
+
+            if not self.var_autorizacao.get():
+                messagebox.showwarning(
+                    "Aviso",
+                    "É necessário marcar a autorização do responsável para matricular menores de "
+                    f"{IDADE_MINIMA_SEM_RESPONSAVEL} anos.",
+                )
+                return
+
+            dados_responsavel = {
+                "nome": resp_nome,
+                "cpf": re.sub(r"\D", "", resp_cpf),
+                "telefone": resp_telefone,
+                "parentesco": resp_parentesco,
+            }
+
+        cpf_limpo = re.sub(r"\D", "", cpf)
+        for existente in self.alunos:
+            if existente["cpf"] == cpf_limpo:
+                messagebox.showerror("Erro", "Já existe um aluno cadastrado com este CPF.")
+                return
+
+        aluno = {
+            "nome": nome,
+            "idade": idade_txt,
+            "cpf": cpf_limpo,
+            "nascimento": nascimento,
+            "telefone": telefone,
+            "endereco": endereco,
+            "plano": plano,
+            "pagamento": pagamento,
+            "condicoes_saude": self.coletar_condicoes(),
+            "responsavel": dados_responsavel,
+        }
+        self.alunos.append(aluno)
+        self.atualizar_lista()
+
+        for entry in (
+            self.entry_nome, self.entry_idade, self.entry_cpf, self.entry_nascimento,
+            self.entry_telefone, self.entry_endereco, self.entry_resp_nome,
+            self.entry_resp_cpf, self.entry_resp_telefone, self.entry_resp_parentesco,
+        ):
+            entry.delete(0, tk.END)
+        self.combo_plano.current(0)
+        self.combo_pagamento.current(0)
+        self.var_autorizacao.set(False)
+        self.limpar_condicoes()
+        self.entry_nome.focus()
+
+        self.salvar_dados(mostrar_aviso=False)
+
+    def ver_detalhes(self):
+        selecionado = self.tree.selection()
+        if not selecionado:
+            messagebox.showwarning("Aviso", "Selecione um aluno para ver os detalhes.")
+            return
+
+        indice = int(selecionado[0])
+        aluno = self.alunos[indice]
+        condicoes = ", ".join(aluno["condicoes_saude"]) if aluno["condicoes_saude"] else "Nenhuma informada"
+
+        detalhes = (
+            f"Nome: {aluno['nome']}\n"
+            f"Idade: {aluno['idade']}\n"
+            f"CPF: {formata_cpf(aluno['cpf'])}\n"
+            f"Nascimento: {aluno['nascimento']}\n"
+            f"Telefone: {aluno['telefone']}\n"
+            f"Endereço: {aluno['endereco']}\n"
+            f"Plano: {aluno['plano']}\n"
+            f"Forma de pagamento: {aluno.get('pagamento', '-')}\n"
+            f"Condições de saúde: {condicoes}\n"
+        )
+
+        responsavel = aluno.get("responsavel")
+        if responsavel:
+            detalhes += (
+                f"\n--- Responsável ---\n"
+                f"Nome: {responsavel['nome']}\n"
+                f"CPF: {formata_cpf(responsavel['cpf'])}\n"
+                f"Telefone: {responsavel['telefone']}\n"
+                f"Parentesco: {responsavel['parentesco']}\n"
+            )
+
+        messagebox.showinfo("Detalhes do aluno", detalhes)
+
+    def remover_selecionado(self):
+        selecionado = self.tree.selection()
+        if not selecionado:
+            messagebox.showwarning("Aviso", "Selecione um aluno para remover.")
+            return
+
+        indice = int(selecionado[0])
+        confirmar = messagebox.askyesno(
+            "Confirmar remoção", f"Deseja remover '{self.alunos[indice]['nome']}' da lista?"
+        )
+        if confirmar:
+            del self.alunos[indice]
+            self.atualizar_lista()
+            self.salvar_dados(mostrar_aviso=False)
+
+    def limpar_lista(self):
+        if not self.alunos:
+            return
+        confirmar = messagebox.askyesno(
+            "Confirmar", "Deseja realmente limpar toda a lista de matriculados?"
+        )
+        if confirmar:
+            self.alunos = []
+            self.atualizar_lista()
+            self.salvar_dados(mostrar_aviso=False)
+
+    def buscar_aluno(self, event=None):
+        termo = self.entry_busca.get().strip().lower()
+        self.atualizar_lista(filtro=termo if termo else None)
+
+    def salvar_dados(self, mostrar_aviso=True):
+        try:
+            with open(ARQUIVO_DADOS, "w", encoding="utf-8") as f:
+                json.dump(self.alunos, f, ensure_ascii=False, indent=2)
+            if mostrar_aviso:
+                messagebox.showinfo("Sucesso", "Dados salvos com sucesso!")
+        except Exception as e:
+            if mostrar_aviso:
+                messagebox.showerror("Erro", f"Não foi possível salvar os dados.\n{e}")
+
+    def carregar_dados(self):
+        if os.path.exists(ARQUIVO_DADOS):
+            try:
+                with open(ARQUIVO_DADOS, "r", encoding="utf-8") as f:
+                    self.alunos = json.load(f)
+            except Exception:
+                self.alunos = []
+        self.atualizar_lista()
+
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = AcademiaApp(root)
+    root.mainloop()
